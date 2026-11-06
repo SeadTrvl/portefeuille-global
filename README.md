@@ -22,5 +22,5 @@ Node.js est installé dans `~/.local/node/bin` :
 - `src/moteur/` : calculs purs, un fichier par règle du guide (§ indiqué en commentaire).
 - `src/donnees/` : état, stockage local (IndexedDB), import/export du fichier iCloud.
 - `src/ui/` : écrans (Preact).
-- Publication : GitHub Pages via `.github/workflows/pages.yml` (le dépôt doit s'appeler `portefeuille-global`).
+- Publication : `./publier.sh` (tests, construction, envoi sur la branche gh-pages ; le dépôt doit s’appeler `portefeuille-global`).
   Seul le code est publié ; aucune donnée personnelle n'est dans le dépôt.
