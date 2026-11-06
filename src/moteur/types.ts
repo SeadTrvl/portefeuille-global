@@ -89,6 +89,8 @@ export interface Actif {
   mode: ModeValorisation;
   /** Devise de cotation (EUR par défaut). Les cours d'un actif en USD sont saisis en dollars. */
   devise?: Devise;
+  /** Symbole Yahoo Finance facultatif : actif sans ISIN (ex. BTC-EUR) ou place imposée (ex. EUNL.DE). */
+  symbole?: string;
   /** Vrai pour l'ETF MSCI World qui sert au portefeuille fantôme et à l'attente du Satellite. */
   etfWorldReference?: boolean;
   archive?: boolean;

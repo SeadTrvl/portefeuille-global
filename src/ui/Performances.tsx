@@ -4,6 +4,7 @@ import { useApp } from './store';
 import { BoutonTauxBCE, Carte, ChampDate, Eur, Pct, Graphique, couleurs, Vide, dateFr, LIBELLES_LIGNES, LIBELLES_POCHES } from './commun';
 import { statsActif, serieGroupe, sansDebutVide, twrGroupe, triGroupe, debutPeriode, LIBELLES_PERIODES, type Periode, type Selection } from '../moteur/performance';
 import { lireNombre, lireMontant, formatEuros, formatDevise } from '../moteur/montants';
+import { coursParIsin, tauxBCE } from '../donnees/marche';
 import { LIBELLES_SOUS_POCHES } from '../moteur/alertes';
 import { SOUS_POCHES_C, sousPocheDe, type Actif, type Poche, type SousPocheC } from '../moteur/types';
 import { nouvelId } from '../donnees/etat';
@@ -300,6 +301,42 @@ export function MiseAJourCours() {
   const [taux, setTaux] = useState('');
   const dernierTaux = calc.idx.tauxA(calc.date);
   const detenus = etat.actifs.filter((a) => !a.archive && (calc.idx.valeur(a.id, calc.date) !== 0 || calc.idx.quantite(a.id, calc.date) !== 0));
+  const [infos, setInfos] = useState<Record<string, { texte: string; erreur: boolean }>>({});
+  const [chargement, setChargement] = useState(false);
+  const automatiques = detenus.filter((a) => a.mode === 'cours' && (a.isin || a.symbole));
+
+  /** Récupère par le relais le cours de chaque actif coté (ISIN ou symbole), et le taux BCE s'il y a des actifs en dollars. */
+  async function recuperer() {
+    setChargement(true);
+    setInfos({});
+    const nouvellesSaisies: Record<string, string> = {};
+    const nouvellesInfos: Record<string, { texte: string; erreur: boolean }> = {};
+    const taches: Promise<void>[] = automatiques.map(async (a) => {
+      const devise = a.devise ?? 'EUR';
+      try {
+        const c = await coursParIsin({ isin: a.isin, symbole: a.symbole, devise, date });
+        if (c.devise !== devise) {
+          nouvellesInfos[a.id] = { erreur: true, texte: `${c.symbole} cote en ${c.devise}, pas en ${devise} : indique un symbole Yahoo dans l'actif (ex. ${c.symbole.split('.')[0]}.AS).` };
+          return;
+        }
+        nouvellesSaisies[a.id] = c.cours.toLocaleString('fr-FR', { maximumFractionDigits: 4, useGrouping: false });
+        nouvellesInfos[a.id] = { erreur: false, texte: `${c.symbole}${c.bourse ? ' · ' + c.bourse : ''} · cours du ${dateFr(c.date)}` };
+      } catch (e) {
+        nouvellesInfos[a.id] = { erreur: true, texte: (e as Error).message };
+      }
+    });
+    if (detenus.some((a) => a.devise === 'USD') && !taux) {
+      taches.push(
+        tauxBCE(date)
+          .then((t) => setTaux(t.usdParEur.toLocaleString('fr-FR', { maximumFractionDigits: 6 })))
+          .catch(() => undefined)
+      );
+    }
+    await Promise.all(taches);
+    setSaisies((s) => ({ ...s, ...nouvellesSaisies }));
+    setInfos(nouvellesInfos);
+    setChargement(false);
+  }
 
   function toutEnregistrer() {
     let n = 0;
@@ -368,6 +405,7 @@ export function MiseAJourCours() {
                           : 'Aucun cours'
                         : `Valeur actuelle : ${formatEuros(calc.idx.valeur(a.id, calc.date))}${derniereValo ? ` (relevé du ${dateFr(derniereValo.date)})` : ''}`}
                     </small>
+                    {infos[a.id] && <small class={infos[a.id].erreur ? 'negatif' : 'positif'}>{infos[a.id].texte}</small>}
                   </div>
                   <input
                     inputMode="decimal"
@@ -380,6 +418,16 @@ export function MiseAJourCours() {
             })}
           </ul>
         )}
+        {automatiques.length > 0 && (
+          <div class="boutons">
+            <button onClick={recuperer} disabled={chargement}>
+              {chargement ? 'Récupération…' : `Récupérer les cours (${automatiques.length})`}
+            </button>
+          </div>
+        )}
+        <p class="doux">
+          « Récupérer les cours » remplit les actifs qui ont un ISIN ou un symbole Yahoo (clôture à la date du relevé ou dernier jour de cotation avant ; aujourd’hui, dernier cours connu). Vérifie puis enregistre.
+        </p>
         <p class="doux">Actifs cotés : saisis le cours par part. Fonds euros, livrets, monétaire : saisis la valeur totale du contrat.</p>
         <div class="boutons">
           <button class="principal" onClick={toutEnregistrer} disabled={Object.values(saisies).every((x) => !x) && !taux}>

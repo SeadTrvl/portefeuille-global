@@ -62,3 +62,36 @@ export async function tauxBCE(date: DateISO): Promise<TauxBCE> {
   }
   throw new Error(navigator.onLine === false ? 'Pas de connexion internet.' : `Aucun taux BCE trouvé pour le ${date}.`);
 }
+
+/** Relais privé (Cloudflare) qui interroge Yahoo Finance à la place de l'application. */
+export const RELAIS = 'https://portefeuille-relais.seadtrvl.workers.dev';
+
+export interface CoursRelais {
+  symbole: string;
+  bourse?: string;
+  devise: string;
+  date: DateISO; // jour de cotation (≤ date demandée)
+  cours: number;
+  nom?: string;
+  avertissement?: string;
+}
+
+/**
+ * Cours d'un actif à une date, par son ISIN ou son symbole Yahoo.
+ * Seuls l'ISIN (ou le symbole), la devise et la date sont envoyés : jamais de montant.
+ */
+export async function coursParIsin(args: { isin?: string; symbole?: string; devise: string; date: DateISO }): Promise<CoursRelais> {
+  const p = new URLSearchParams({ devise: args.devise, date: args.date });
+  if (args.symbole) p.set('symbole', args.symbole);
+  else if (args.isin) p.set('isin', args.isin.replace(/\s/g, '').toUpperCase());
+  else throw new Error('Ni ISIN ni symbole');
+  let r: Response;
+  try {
+    r = await fetch(`${RELAIS}/cours?${p}`);
+  } catch {
+    throw new Error(navigator.onLine === false ? 'Pas de connexion internet.' : 'Relais injoignable.');
+  }
+  const j = (await r.json().catch(() => ({}))) as Partial<CoursRelais> & { erreur?: string };
+  if (!r.ok || j.erreur || typeof j.cours !== 'number') throw new Error(j.erreur ?? `Erreur ${r.status}`);
+  return j as CoursRelais;
+}

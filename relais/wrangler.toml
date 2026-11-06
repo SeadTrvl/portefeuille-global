@@ -1,0 +1,5 @@
+# Relais privé : ISIN → cours (source Yahoo Finance). Aucune donnée personnelle ne transite ici.
+name = "portefeuille-relais"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+workers_dev = true

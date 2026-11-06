@@ -127,7 +127,14 @@ function Actifs() {
       <Carte titre={a.id ? "Modifier l'actif" : 'Nouvel actif'}>
         <div class="formulaire">
           <ChampTexte libelle="Nom" valeur={a.nom} onChange={(nom) => setA({ ...a, nom })} />
-          <ChampTexte libelle="ISIN ou ticker" valeur={a.isin ?? ''} onChange={(isin) => setA({ ...a, isin })} />
+          <ChampTexte libelle="ISIN" valeur={a.isin ?? ''} onChange={(isin) => setA({ ...a, isin: isin.trim().toUpperCase() || undefined })} />
+          {a.mode === 'cours' && (
+            <label class="champ">
+              <span>Symbole Yahoo (facultatif)</span>
+              <input value={a.symbole ?? ''} placeholder="ex. BTC-EUR" onInput={(e) => setA({ ...a, symbole: (e.target as HTMLInputElement).value.trim() || undefined })} />
+              <small>Pour un actif sans ISIN (crypto : BTC-EUR) ou pour imposer une place (ex. EUNL.DE). Sinon l'ISIN suffit.</small>
+            </label>
+          )}
           <ChampChoix libelle="Poche" valeur={a.poche} options={poches} onChange={changerPoche} />
           <ChampChoix libelle="Sous-poche" valeur={a.ligne} options={lignes} onChange={(ligne) => setA({ ...a, ligne })} />
           <ChampChoix

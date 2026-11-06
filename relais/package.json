@@ -1,0 +1,12 @@
+{
+  "name": "portefeuille-relais",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deployer": "wrangler deploy",
+    "test": "node --test test/"
+  },
+  "devDependencies": {
+    "wrangler": "4.20.0"
+  }
+}
