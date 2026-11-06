@@ -3,7 +3,7 @@ import { useApp } from './store';
 import { Carte, Eur, Pct, Pastille, Graphique, couleurs, LIBELLES_POCHES, Vide, dateFr } from './commun';
 import { LIBELLES_SOUS_POCHES } from '../moteur/alertes';
 import { SOUS_POCHES_C, type Poche } from '../moteur/types';
-import { serieGroupe, debutPeriode } from '../moteur/performance';
+import { serieGroupe, debutPeriode, sansDebutVide } from '../moteur/performance';
 import { formatEuros } from '../moteur/montants';
 
 export function TableauDeBord() {
@@ -46,7 +46,7 @@ export function TableauDeBord() {
 
   const sel = () => true;
   const debut = debutPeriode(calc.idx, sel, 'MAX', calc.date);
-  const serie = serieGroupe(calc.idx, sel, debut, calc.date);
+  const serie = sansDebutVide(serieGroupe(calc.idx, sel, debut, calc.date));
 
   return (
     <>

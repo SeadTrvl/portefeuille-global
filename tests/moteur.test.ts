@@ -158,6 +158,10 @@ describe('Cas 4 — crypto au-delà du plafond', () => {
     expect(crypto.niveau).toBe('action');
     expect(venteCrypto(P, s)).toBe(e(11000 - 7500));
   });
+  it('sous le plafond de 10 % : aucune vente proposée', () => {
+    const s = syntheseC({ core: 60000, satellite: 24000, crypto: 9000, matieres_premieres: 5000, fun: 2000 });
+    expect(venteCrypto(P, s)).toBe(0);
+  });
 });
 
 describe('Cas 5 — plafond BO', () => {

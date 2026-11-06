@@ -27,8 +27,9 @@ export const LIBELLES_SOUS_POCHES: Record<SousPocheC, string> = {
   fun: 'Fun / alternatifs'
 };
 
-/** § 6 : vente de crypto proposée pour revenir à la cible (7,5 % de C). */
+/** § 6 : au-delà du plafond dur (10 %), vente de crypto proposée pour revenir à la cible (7,5 % de C). */
 export function venteCrypto(p: Parametres, s: Synthese): Centimes {
+  if (s.C <= 0 || s.parSousPoche.crypto / s.C <= p.cryptoPlafondDur + 1e-9) return 0;
   return Math.max(0, s.parSousPoche.crypto - Math.round(p.ciblesC.crypto * s.C));
 }
 

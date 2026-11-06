@@ -17,7 +17,7 @@ export function Satellite() {
   const [f, setF] = useState<FicheSatellite>(vide);
   const nbWatch = etat.fiches.filter((x) => x.statut === 'watchlist').length;
   const actifsSat = etat.actifs.filter((a) => a.ligne === 'satellite');
-  const etfs = etat.actifs.filter((a) => a.poche === 'C' && a.mode === 'cours' && a.ligne !== 'satellite');
+  const etfs = etat.actifs.filter((a) => a.mode === 'cours' && !a.archive && ['world', 'emergents', 'europe'].includes(a.ligne));
 
   return (
     <>

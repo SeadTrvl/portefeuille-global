@@ -26,7 +26,7 @@ export function formatPct(x: number, decimales = 1): string {
     new Intl.NumberFormat('fr-FR', {
       minimumFractionDigits: decimales,
       maximumFractionDigits: decimales
-    }).format(x * 100) + ' %'
+    }).format(Math.abs(x * 100) < 0.5 * 10 ** -decimales ? 0 : x * 100) + ' %' // évite « −0,0 % »
   );
 }
 

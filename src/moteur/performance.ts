@@ -184,11 +184,20 @@ export function serieGroupe(idx: Index, sel: Selection, debut: DateISO, fin: Dat
   return points;
 }
 
-/** Performance TWR sur la période (en décimal) et sa version annualisée. */
+/**
+ * Retire le début de série où rien n'était encore détenu (on garde un seul point à zéro),
+ * pour que les graphiques ne tracent pas une fausse pente avant le premier achat.
+ */
+export function sansDebutVide(s: PointSerie[]): PointSerie[] {
+  const i = s.findIndex((p) => p.valeur !== 0 || p.investi !== 0);
+  return i <= 1 ? s : s.slice(i - 1);
+}
+
+/** Performance TWR sur la période (en décimal) et sa version annualisée (sur la durée réellement détenue). */
 export function twrGroupe(idx: Index, sel: Selection, debut: DateISO, fin: DateISO) {
   const s = serieGroupe(idx, sel, debut, fin);
   const total = s[s.length - 1].indice / 100 - 1;
-  const ans = ecartJours(debut, fin) / 365;
+  const ans = ecartJours(sansDebutVide(s)[0].date, fin) / 365;
   const annualise = ans >= 1 ? Math.pow(1 + total, 1 / ans) - 1 : null;
   return { total, annualise };
 }
@@ -202,7 +211,12 @@ export function triGroupe(idx: Index, sel: Selection, debut: DateISO, fin: DateI
   if (v0 > 0) flux.push({ date: debut, montant: -v0 });
   for (const a of apportsGroupe(idx, sel, debutEffectif, fin)) flux.push({ date: a.date, montant: -a.montant });
   flux.push({ date: fin, montant: valeurGroupe(idx, sel, fin) });
-  return xirr(flux);
+  const r = xirr(flux);
+  if (r === null) return null;
+  // Sur moins d'un an, un taux annualisé exagère (ex. +10 % en un mois ≈ +200 %/an) :
+  // on renvoie alors le rendement de la période, non annualisé.
+  const jours = ecartJours(flux[0].date, fin);
+  return jours < 365 ? Math.pow(1 + r, jours / 365) - 1 : r;
 }
 
 function veille(d: DateISO): DateISO {

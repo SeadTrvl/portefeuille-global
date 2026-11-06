@@ -2,7 +2,7 @@
 import { useState } from 'preact/hooks';
 import { useApp } from './store';
 import { Carte, ChampDate, Eur, Pct, Graphique, couleurs, Vide, dateFr, LIBELLES_LIGNES, LIBELLES_POCHES } from './commun';
-import { statsActif, serieGroupe, twrGroupe, triGroupe, debutPeriode, LIBELLES_PERIODES, type Periode, type Selection } from '../moteur/performance';
+import { statsActif, serieGroupe, sansDebutVide, twrGroupe, triGroupe, debutPeriode, LIBELLES_PERIODES, type Periode, type Selection } from '../moteur/performance';
 import { lireNombre, lireMontant, formatEuros } from '../moteur/montants';
 import { LIBELLES_SOUS_POCHES } from '../moteur/alertes';
 import { SOUS_POCHES_C, sousPocheDe, type Actif, type Poche, type SousPocheC } from '../moteur/types';
@@ -55,7 +55,7 @@ export function Performances() {
                   <th>Valeur</th>
                   <th>+/− latente</th>
                   <th title="Performance pondérée par le temps sur la période">Perf.</th>
-                  <th title="Taux de rendement interne sur la période, annualisé">TRI</th>
+                  <th title="Taux de rendement interne : annualisé si la période dépasse un an">TRI</th>
                 </tr>
               </thead>
               <tbody>
@@ -127,7 +127,7 @@ export function Performances() {
           </table>
         </div>
         <p class="doux">
-          <b>Perf.</b> : performance pondérée par le temps (indépendante de tes dates de versement, pour comparer des actifs). <b>TRI</b> : rendement annualisé de ton argent, compte tenu de tes versements.
+          <b>Perf.</b> : performance pondérée par le temps (indépendante de tes dates de versement, pour comparer des actifs). <b>TRI</b> : rendement de ton argent compte tenu de tes versements, annualisé au-delà d’un an (sur une période plus courte, rendement de la période).
         </p>
       </Carte>
     </>
@@ -139,7 +139,7 @@ function Comparaison({ ids, periode }: { ids: string[]; periode: Periode }) {
   // Période commune : on part de la date la plus récente parmi les débuts.
   const debuts = ids.map((id) => debutPeriode(calc.idx, (a) => a.id === id, periode, calc.date));
   const debut = debuts.sort().at(-1)!;
-  const series = ids.map((id) => ({ actif: etat.actifs.find((a) => a.id === id)!, s: serieGroupe(calc.idx, (a) => a.id === id, debut, calc.date) }));
+  const series = ids.map((id) => ({ actif: etat.actifs.find((a) => a.id === id)!, s: sansDebutVide(serieGroupe(calc.idx, (a) => a.id === id, debut, calc.date)) }));
   return (
     <Carte titre={`Comparaison en base 100 depuis le ${dateFr(debut)}`}>
       <Graphique
@@ -175,7 +175,7 @@ function FicheActif({ actif, periode, setPeriode }: { actif: Actif; periode: Per
   const st = statsActif(calc.idx, actif, calc.date);
   const sel: Selection = (a) => a.id === actif.id;
   const debut = debutPeriode(calc.idx, sel, periode, calc.date);
-  const serie = serieGroupe(calc.idx, sel, debut, calc.date);
+  const serie = sansDebutVide(serieGroupe(calc.idx, sel, debut, calc.date));
   const twr = twrGroupe(calc.idx, sel, debut, calc.date);
   const tri = triGroupe(calc.idx, sel, debut, calc.date);
   const ops = calc.idx.ops(actif.id);

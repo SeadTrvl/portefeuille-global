@@ -309,7 +309,7 @@ select.filtre {
 }
 
 /* Tableau de bord */
-.patrimoine span {
+.patrimoine > span {
   color: var(--texte-doux);
   font-size: 0.9rem;
 }
@@ -642,7 +642,7 @@ select.filtre {
   padding: 8px 10px;
 }
 
-.chiffres span {
+.chiffres > div > span {
   font-size: 0.78rem;
   color: var(--texte-doux);
 }
