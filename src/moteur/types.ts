@@ -176,6 +176,8 @@ export interface Decision {
   motif: string;
   regle: string;
   prochaineRevue?: DateISO;
+  /** Tranche de krach déployée (§ 5) : rattachée à l'épisode par sa date de début. */
+  tranche?: { dateDebutEpisode: DateISO; numero: number };
 }
 
 export type StatutProjet = 'sommeil' | 'actif' | 'realise';
