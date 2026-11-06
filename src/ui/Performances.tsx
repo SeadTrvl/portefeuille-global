@@ -1,7 +1,7 @@
 // Suivi des performances façon Portfolio Performance : liste, fiche par actif, comparaison, mise à jour des cours.
 import { useState } from 'preact/hooks';
 import { useApp } from './store';
-import { Carte, ChampDate, Eur, Pct, Graphique, couleurs, Vide, dateFr, LIBELLES_LIGNES, LIBELLES_POCHES } from './commun';
+import { BoutonTauxBCE, Carte, ChampDate, Eur, Pct, Graphique, couleurs, Vide, dateFr, LIBELLES_LIGNES, LIBELLES_POCHES } from './commun';
 import { statsActif, serieGroupe, sansDebutVide, twrGroupe, triGroupe, debutPeriode, LIBELLES_PERIODES, type Periode, type Selection } from '../moteur/performance';
 import { lireNombre, lireMontant, formatEuros, formatDevise } from '../moteur/montants';
 import { LIBELLES_SOUS_POCHES } from '../moteur/alertes';
@@ -344,6 +344,7 @@ export function MiseAJourCours() {
           <label class="champ">
             <span>Taux de change du jour : 1 € = … $</span>
             <input inputMode="decimal" placeholder={dernierTaux ? dernierTaux.usdParEur.toLocaleString('fr-FR') : 'ex. 1,08'} value={taux} onInput={(e) => setTaux((e.target as HTMLInputElement).value)} />
+            <BoutonTauxBCE date={date} onTaux={(t) => setTaux(t.toLocaleString('fr-FR', { maximumFractionDigits: 6 }))} />
             <small>
               {dernierTaux ? `Dernier taux : ${dernierTaux.usdParEur.toLocaleString('fr-FR')} le ${dateFr(dernierTaux.date)}. Laisse vide pour le garder.` : 'Obligatoire pour valoriser les actifs en dollars.'}
             </small>

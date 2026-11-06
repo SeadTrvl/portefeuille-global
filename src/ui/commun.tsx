@@ -1,6 +1,7 @@
 // Petits composants partagés : champs de saisie, cartes, libellés.
 import type { ComponentChildren } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { tauxBCE } from '../donnees/marche';
 import { Chart, registerables, type ChartConfiguration } from 'chart.js';
 import { formatEuros, formatPct, lireMontant, lireNombre, type Centimes } from '../moteur/montants';
 import type { Ligne, Poche, TypeOperation } from '../moteur/types';
@@ -177,4 +178,27 @@ export function dateFr(d: string | null | undefined): string {
   if (!d) return '—';
   const [a, m, j] = d.slice(0, 10).split('-');
   return `${j}/${m}/${a}`;
+}
+
+/** Bouton « Taux BCE » : récupère le taux de référence EUR/USD de la BCE à la date donnée. */
+export function BoutonTauxBCE({ date, onTaux }: { date: string; onTaux: (usdParEur: number) => void }) {
+  const [etat, setEtat] = useState<{ chargement: boolean; message: string | null; erreur: boolean }>({ chargement: false, message: null, erreur: false });
+  async function charger() {
+    setEtat({ chargement: true, message: null, erreur: false });
+    try {
+      const t = await tauxBCE(date);
+      onTaux(t.usdParEur);
+      setEtat({ chargement: false, erreur: false, message: `Taux BCE du ${dateFr(t.date)} : 1 € = ${t.usdParEur.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} $` });
+    } catch (e) {
+      setEtat({ chargement: false, erreur: true, message: (e as Error).message });
+    }
+  }
+  return (
+    <div class="taux-bce">
+      <button type="button" class="petit" onClick={charger} disabled={etat.chargement || !date}>
+        {etat.chargement ? 'Recherche…' : 'Taux BCE à cette date'}
+      </button>
+      {etat.message && <small class={etat.erreur ? 'negatif' : ''}>{etat.message}</small>}
+    </div>
+  );
 }

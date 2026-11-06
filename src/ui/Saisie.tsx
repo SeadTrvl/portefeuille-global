@@ -14,7 +14,8 @@ import {
   LIBELLES_LIGNES,
   LIBELLES_POCHES,
   LIBELLES_TYPES,
-  LIGNES_PAR_POCHE
+  LIGNES_PAR_POCHE,
+  BoutonTauxBCE
 } from './commun';
 import { nouvelId } from '../donnees/etat';
 import { aujourdhui } from '../donnees/calculs';
@@ -294,8 +295,9 @@ function Operations() {
                 libelle="Taux de change : 1 € = … $"
                 valeur={tauxPropose ?? null}
                 onChange={(t) => changer({ taux: t && t > 0 ? t : undefined })}
-                aide="Taux appliqué par ton courtier (ex. 1,08)"
+                aide="Taux appliqué par ton courtier (ex. 1,08). À défaut, le taux de référence BCE du jour."
               />
+              <BoutonTauxBCE date={o.date} onTaux={(t) => changer({ taux: t })} />
             </>
           )}
           <ChampMontant
