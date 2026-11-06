@@ -18,6 +18,16 @@ import type {
 
 export const VERSION_SCHEMA = 1;
 
+/** Copie profonde compatible avec les anciens Safari (structuredClone n'existe qu'à partir d'iOS 15.4). */
+export function copie<T>(x: T): T {
+  return typeof structuredClone === 'function' ? structuredClone(x) : (JSON.parse(JSON.stringify(x)) as T);
+}
+
+/** Dernier élément d'un tableau (Array.prototype.at n'existe qu'à partir d'iOS 15.4). */
+export function dernierDe<T>(t: T[]): T | undefined {
+  return t.length ? t[t.length - 1] : undefined;
+}
+
 export interface Etat {
   version_schema: number;
   modifie_le: string; // horodatage ISO complet
@@ -46,7 +56,7 @@ export function etatVide(): Etat {
     version_schema: VERSION_SCHEMA,
     modifie_le: new Date(0).toISOString(),
     appareil: nomAppareil(),
-    parametres: structuredClone(PARAMETRES_BRUTS_DEFAUT),
+    parametres: copie(PARAMETRES_BRUTS_DEFAUT),
     parametresModifies: {},
     profil: { revenuVariable: false, depensesEssentielles: 0 },
     comptes: [],

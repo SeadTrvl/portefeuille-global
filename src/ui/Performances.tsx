@@ -2,12 +2,12 @@
 import { useState } from 'preact/hooks';
 import { useApp } from './store';
 import { BoutonTauxBCE, Carte, ChampDate, Eur, Pct, Graphique, couleurs, Vide, dateFr, LIBELLES_LIGNES, LIBELLES_POCHES } from './commun';
-import { statsActif, serieGroupe, sansDebutVide, twrGroupe, triGroupe, debutPeriode, LIBELLES_PERIODES, type Periode, type Selection } from '../moteur/performance';
+import { statsActif, serieGroupe, sansDebutVide, dividendesGroupe, twrGroupe, triGroupe, debutPeriode, LIBELLES_PERIODES, type Periode, type Selection } from '../moteur/performance';
 import { lireNombre, lireMontant, formatEuros, formatDevise } from '../moteur/montants';
 import { coursParIsin, tauxBCE } from '../donnees/marche';
 import { LIBELLES_SOUS_POCHES } from '../moteur/alertes';
 import { SOUS_POCHES_C, sousPocheDe, type Actif, type Poche, type SousPocheC } from '../moteur/types';
-import { nouvelId } from '../donnees/etat';
+import { dernierDe, nouvelId } from '../donnees/etat';
 import { aujourdhui } from '../donnees/calculs';
 
 const PERIODES: Periode[] = ['1M', '3M', 'YTD', '1A', '3A', 'MAX'];
@@ -57,6 +57,7 @@ export function Performances() {
                   <th>+/− latente</th>
                   <th title="Performance pondérée par le temps sur la période">Perf.</th>
                   <th title="Taux de rendement interne : annualisé si la période dépasse un an">TRI</th>
+                  <th title="Dividendes nets reçus sur la période">Div.</th>
                 </tr>
               </thead>
               <tbody>
@@ -86,6 +87,7 @@ export function Performances() {
                       </td>
                       <td><Pct x={twr.total} /></td>
                       <td><Pct x={tri} /></td>
+                      <td>{(() => { const d = dividendesGroupe(calc.idx, sel, debut, calc.date); return d ? <Eur c={d} /> : '—'; })()}</td>
                     </tr>
                   );
                 })}
@@ -107,6 +109,7 @@ export function Performances() {
                 <th>Valeur</th>
                 <th>Perf.</th>
                 <th>TRI</th>
+                <th title="Dividendes nets reçus sur la période">Div.</th>
               </tr>
             </thead>
             <tbody>
@@ -121,6 +124,7 @@ export function Performances() {
                     <td><Eur c={fin.valeur} /></td>
                     <td><Pct x={fin.indice / 100 - 1} /></td>
                     <td><Pct x={triGroupe(calc.idx, g.sel, debut, calc.date)} /></td>
+                    <td>{(() => { const d = dividendesGroupe(calc.idx, g.sel, debut, calc.date); return d ? <Eur c={d} /> : '—'; })()}</td>
                   </tr>
                 );
               })}
@@ -128,7 +132,7 @@ export function Performances() {
           </table>
         </div>
         <p class="doux">
-          <b>Perf.</b> : performance pondérée par le temps (indépendante de tes dates de versement, pour comparer des actifs). <b>TRI</b> : rendement de ton argent compte tenu de tes versements, annualisé au-delà d’un an (sur une période plus courte, rendement de la période).
+          <b>Perf.</b> : performance pondérée par le temps (indépendante de tes dates de versement, pour comparer des actifs). <b>TRI</b> : rendement de ton argent compte tenu de tes versements, annualisé au-delà d’un an (sur une période plus courte, rendement de la période). <b>Div.</b> : dividendes nets reçus sur la période (en euros).
         </p>
       </Carte>
     </>
@@ -139,7 +143,7 @@ function Comparaison({ ids, periode }: { ids: string[]; periode: Periode }) {
   const { calc, etat } = useApp();
   // Période commune : on part de la date la plus récente parmi les débuts.
   const debuts = ids.map((id) => debutPeriode(calc.idx, (a) => a.id === id, periode, calc.date));
-  const debut = debuts.sort().at(-1)!;
+  const debut = dernierDe(debuts.sort())!;
   const series = ids.map((id) => ({ actif: etat.actifs.find((a) => a.id === id)!, s: sansDebutVide(serieGroupe(calc.idx, (a) => a.id === id, debut, calc.date)) }));
   return (
     <Carte titre={`Comparaison en base 100 depuis le ${dateFr(debut)}`}>
@@ -393,7 +397,7 @@ export function MiseAJourCours() {
           <ul class="liste saisie-cours">
             {detenus.map((a) => {
               const dc = a.mode === 'cours' ? calc.idx.dernierCours(a.id, calc.date) : null;
-              const derniereValo = calc.idx.valos(a.id).at(-1);
+              const derniereValo = dernierDe(calc.idx.valos(a.id));
               return (
                 <li>
                   <div>

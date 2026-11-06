@@ -94,9 +94,14 @@ export function rejouerIndice(
 ): PointIndice[] {
   const tries = [...releves].sort((a, b) => a.date.localeCompare(b.date));
   let plusHaut = 0;
+  let source: string | undefined;
   let etat: EtatKrach = { ...ETAT_KRACH_INITIAL };
   const points: PointIndice[] = [];
   for (const r of tries) {
+    // Changement de source (saisie manuelle → ETF de référence, par exemple) : les échelles diffèrent,
+    // le plus haut repart de cette source. L'état de l'épisode, lui, est conservé.
+    if (r.source !== source) plusHaut = 0;
+    source = r.source;
     plusHaut = Math.max(plusHaut, r.valeur, r.plusHautSaisi ?? 0);
     const baisse = calculerBaisse(r.valeur, plusHaut);
     const res = avancerKrach(p, etat, baisse, r.bo ?? boA(r.date, r), r.date);

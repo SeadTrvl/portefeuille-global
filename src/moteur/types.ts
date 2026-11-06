@@ -158,6 +158,9 @@ export interface ReleveIndice {
   plusHautSaisi?: number;
   /** Valeur de B-Opportunité ce jour-là (sert à figer BO_départ au début d'un épisode). */
   bo?: Centimes;
+  /** Source automatique (ex. « IWDA.AS ») ; absent pour une saisie manuelle. */
+  source?: string;
+  datePlusHaut?: DateISO;
 }
 
 export type StatutFiche = 'watchlist' | 'detenue' | 'vendue';

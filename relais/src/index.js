@@ -92,11 +92,68 @@ async function coursA(symbole, date, ctx) {
   return { symbole, bourse: meta.fullExchangeName || meta.exchangeName, devise, date: meilleur.date, cours, nom: meta.longName || meta.shortName };
 }
 
+/**
+ * Dernier cours et plus haut historique (clôtures journalières depuis l'origine) à une date.
+ * Sert à la règle de krach : baisse = cours / plus haut − 1 (§ 5 du guide).
+ */
+async function plusHaut(symbole, date, ctx) {
+  const fin = Math.floor(Date.parse(date + 'T23:59:59Z') / 1000) + 86400;
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const j = await yahoo(
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbole)}?period1=0&period2=${fin}&interval=1d&events=`,
+    ctx,
+    date >= aujourdhui ? 900 : 86400
+  );
+  const res = j.chart && j.chart.result && j.chart.result[0];
+  if (!res) return null;
+  const meta = res.meta || {};
+  const ts = res.timestamp || [];
+  const closes = (res.indicators && res.indicators.quote && res.indicators.quote[0] && res.indicators.quote[0].close) || [];
+  const decalage = meta.gmtoffset || 0;
+  let dernier = null;
+  let haut = null;
+  for (let i = 0; i < ts.length; i++) {
+    const c = closes[i];
+    if (c === null || c === undefined) continue;
+    const jour = new Date((ts[i] + decalage) * 1000).toISOString().slice(0, 10);
+    if (jour > date) continue;
+    dernier = { date: jour, cours: c };
+    if (!haut || c > haut.cours) haut = { date: jour, cours: c };
+  }
+  if (date >= aujourdhui && meta.regularMarketPrice && meta.regularMarketTime) {
+    const jour = new Date((meta.regularMarketTime + decalage) * 1000).toISOString().slice(0, 10);
+    if (!dernier || jour >= dernier.date) dernier = { date: jour, cours: meta.regularMarketPrice };
+    if (!haut || meta.regularMarketPrice > haut.cours) haut = { date: jour, cours: meta.regularMarketPrice };
+  }
+  if (!dernier) return null;
+  return {
+    symbole,
+    devise: meta.currency,
+    nom: meta.longName || meta.shortName,
+    date: dernier.date,
+    cours: dernier.cours,
+    plusHaut: haut.cours,
+    datePlusHaut: haut.date,
+    debutHistorique: ts.length ? new Date((ts[0] + decalage) * 1000).toISOString().slice(0, 10) : null
+  };
+}
+
 export default {
   async fetch(req, env, ctx) {
     const origine = req.headers.get('Origin');
     if (req.method === 'OPTIONS') return reponse({}, 204, origine);
     const url = new URL(req.url);
+    if (url.pathname === '/plushaut') {
+      const sym = (url.searchParams.get('symbole') || '').trim();
+      const d = url.searchParams.get('date') || new Date().toISOString().slice(0, 10);
+      if (!sym || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return reponse({ erreur: 'Paramètres invalides' }, 400, origine);
+      try {
+        const r = await plusHaut(sym, d, ctx);
+        return r ? reponse(r, 200, origine) : reponse({ erreur: `Aucun cours pour ${sym}` }, 404, origine);
+      } catch (e) {
+        return reponse({ erreur: String(e.message || e) }, 502, origine);
+      }
+    }
     if (url.pathname !== '/cours') return reponse({ erreur: 'Utiliser /cours?isin=…&devise=EUR&date=AAAA-MM-JJ' }, 404, origine);
 
     const isin = (url.searchParams.get('isin') || '').trim().toUpperCase();

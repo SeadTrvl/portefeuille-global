@@ -278,3 +278,16 @@ export function debutPeriode(idx: Index, sel: Selection, periode: Periode, fin: 
     }
   }
 }
+
+/** Dividendes nets reçus par un groupe sur la période ]debut ; fin] (en euros). */
+export function dividendesGroupe(idx: Index, sel: Selection, debut: DateISO, fin: DateISO): Centimes {
+  let total = 0;
+  for (const actif of idx.d.actifs) {
+    for (const op of idx.ops(actif.id)) {
+      if (op.date > fin) break;
+      if (op.date <= debut || op.type !== 'dividende') continue;
+      if (sel(actif, ligneEffective(actif, op))) total += op.montant - op.frais;
+    }
+  }
+  return total;
+}

@@ -213,3 +213,17 @@ describe('XIRR', () => {
     expect(xirr([{ date: '2025-01-01', montant: -1000 }])).toBeNull();
   });
 });
+
+describe('Krach — source automatique', () => {
+  it('le plus haut repart quand la source change (échelles différentes)', () => {
+    const releves = [
+      { id: 'a', date: '2026-01-01', valeur: 3500 },
+      { id: 'b', date: '2026-02-01', valeur: 110, plusHautSaisi: 120, source: 'IWDA.AS' },
+      { id: 'c', date: '2026-03-01', valeur: 100, plusHautSaisi: 120, source: 'IWDA.AS' }
+    ];
+    const pts = rejouerIndice(P, releves, () => e(3000));
+    expect(pts[1].plusHaut).toBe(120);
+    expect(pts[2].baisse).toBeCloseTo(100 / 120 - 1, 10);
+    expect(pts[2].etat.actif).toBe(true); // −16,7 % : épisode démarré
+  });
+});

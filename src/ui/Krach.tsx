@@ -1,12 +1,13 @@
 // Écran Krach (§ 5) : relevés du MSCI World en euros, état de l'épisode, tranches à déployer.
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { useApp } from './store';
 import { Carte, ChampDate, ChampNombre, Eur, Pct, Graphique, couleurs, Vide, dateFr, LIBELLES_LIGNES } from './commun';
 import { montantTranche, prochaineTranche, conditionsTranche } from '../moteur/krach';
 import { repartirSelonManques } from '../moteur/flux';
-import { nouvelId } from '../donnees/etat';
+import { dernierDe, nouvelId } from '../donnees/etat';
 import { aujourdhui } from '../donnees/calculs';
 import { formatPct } from '../moteur/montants';
+import { msciWorld, SOURCE_MSCI, LIBELLE_SOURCE_MSCI } from '../donnees/marche';
 import type { LigneCore } from '../moteur/types';
 
 export function Krach() {
@@ -17,7 +18,7 @@ export function Krach() {
   const [plusHaut, setPlusHaut] = useState<number | null>(null);
 
   const points = calc.pointsIndice;
-  const dernier = points.at(-1);
+  const dernier = dernierDe(points);
   const BO = calc.s.parPoche.BO;
   const prochaine = prochaineTranche(p, krach, BO);
 
@@ -25,6 +26,32 @@ export function Krach() {
   const deployees = new Set(
     etat.journal.filter((d) => d.tranche && krach.dateDebut && d.tranche.dateDebutEpisode === krach.dateDebut).map((d) => d.tranche!.numero)
   );
+
+  // Actualisation automatique (§ 5) : cours de l'ETF MSCI World en euros et son plus haut historique,
+  // une fois par ouverture de l'écran si le dernier relevé automatique n'est pas du jour.
+  const [maj_, setMaj] = useState<{ chargement: boolean; message: string | null; erreur: boolean }>({ chargement: false, message: null, erreur: false });
+  const dejaTente = useRef(false);
+  async function actualiser() {
+    setMaj({ chargement: true, message: null, erreur: false });
+    try {
+      const m = await msciWorld(aujourdhui());
+      maj((e) => {
+        // Un seul relevé automatique par jour de cotation : on remplace celui du même jour.
+        e.indice = e.indice.filter((x) => !(x.source === SOURCE_MSCI && x.date === m.date));
+        e.indice.push({ id: nouvelId(), date: m.date, valeur: m.cours, plusHautSaisi: m.plusHaut, datePlusHaut: m.datePlusHaut, bo: BO, source: SOURCE_MSCI });
+      });
+      setMaj({ chargement: false, erreur: false, message: `Actualisé : cours du ${dateFr(m.date)}.` });
+    } catch (err) {
+      setMaj({ chargement: false, erreur: true, message: (err as Error).message });
+    }
+  }
+  useEffect(() => {
+    if (dejaTente.current) return;
+    dejaTente.current = true;
+    const dernierAuto = [...etat.indice].filter((x) => x.source === SOURCE_MSCI).sort((a, b) => a.date.localeCompare(b.date));
+    const dernierAutoReleve = dernierDe(dernierAuto);
+    if (navigator.onLine !== false && (!dernierAutoReleve || dernierAutoReleve.date < aujourdhui())) void actualiser();
+  }, []);
 
   function ajouter() {
     if (valeur === null) return;
@@ -40,14 +67,22 @@ export function Krach() {
       <Carte titre="Baisse du MSCI World (en euros)">
         {dernier ? (
           <div class="chiffres">
-            <div><span>Dernier relevé</span><strong>{dernier.releve.valeur.toLocaleString('fr-FR')}</strong><small>{dateFr(dernier.releve.date)}</small></div>
-            <div><span>Plus haut historique</span><strong>{dernier.plusHaut.toLocaleString('fr-FR')}</strong></div>
-            <div><span>Baisse</span><strong><Pct x={dernier.baisse} /></strong></div>
+            <div><span>Cours actuel</span><strong>{dernier.releve.valeur.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}{dernier.releve.source ? ' €' : ''}</strong><small>{dateFr(dernier.releve.date)}</small></div>
+            <div><span>Plus haut historique</span><strong>{dernier.plusHaut.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}{dernier.releve.source ? ' €' : ''}</strong>{dernier.releve.datePlusHaut && <small>{dateFr(dernier.releve.datePlusHaut)}</small>}</div>
+            <div><span>Baisse depuis le plus haut</span><strong><Pct x={dernier.baisse} /></strong></div>
+            <div><span>Paliers atteints</span><strong>{p.kPaliers.filter((k) => dernier.baisse <= k + 1e-9).map((k) => formatPct(k, 0)).join(', ') || 'Aucun'}</strong></div>
             <div><span>Épisode</span><strong>{krach.actif ? `Actif depuis le ${dateFr(krach.dateDebut)}` : 'Inactif'}</strong></div>
           </div>
         ) : (
-          <Vide>Aucun relevé. Saisis la valeur actuelle du MSCI World en euros et son plus haut historique.</Vide>
+          <Vide>{maj_.chargement ? 'Récupération du MSCI World…' : 'Aucun relevé.'}</Vide>
         )}
+        <div class="taux-bce">
+          <button class="petit" onClick={actualiser} disabled={maj_.chargement}>
+            {maj_.chargement ? 'Actualisation…' : 'Actualiser maintenant'}
+          </button>
+          {maj_.message && <small class={maj_.erreur ? 'negatif' : ''}>{maj_.message}</small>}
+        </div>
+        <p class="doux">Source : {LIBELLE_SOURCE_MSCI}. Actualisé automatiquement à l'ouverture de cet écran ; les paliers sont vérifiés à chaque relevé.</p>
         <p class="doux">Paliers : {p.kPaliers.map((k) => formatPct(k, 0)).join(', ')} · fin d'épisode au-dessus de {formatPct(p.kFin, 0)}. Une baisse seule ne suffit jamais : seule la règle écrite déclenche.</p>
       </Carte>
 
@@ -90,7 +125,7 @@ export function Krach() {
         )}
       </Carte>
 
-      <Carte titre="Nouveau relevé">
+      <Carte titre="Relevé manuel (facultatif)">
         <div class="formulaire">
           <ChampDate libelle="Date" valeur={date} onChange={setDate} />
           <ChampNombre libelle="MSCI World en euros" valeur={valeur} onChange={setValeur} />

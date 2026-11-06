@@ -128,3 +128,21 @@ describe('Actifs en dollars', () => {
     expect(i.tauxA('2025-01-01')).toBeNull();
   });
 });
+
+describe('Dividendes par période', () => {
+  it('somme les dividendes nets du groupe dans la période', async () => {
+    const { dividendesGroupe } = await import('../src/moteur/performance');
+    const a: Actif = { id: 'd', nom: 'D', poche: 'C', ligne: 'satellite', mode: 'cours' };
+    const i = new Index({
+      actifs: [a],
+      operations: [
+        { id: '1', date: '2026-01-10', actifId: 'd', type: 'achat', quantite: 1, prix: 100, montant: e(100), frais: 0 },
+        { id: '2', date: '2026-03-01', actifId: 'd', type: 'dividende', montant: e(2), frais: e(0.3) },
+        { id: '3', date: '2026-09-01', actifId: 'd', type: 'dividende', montant: e(2), frais: 0 }
+      ],
+      valorisations: []
+    });
+    expect(dividendesGroupe(i, () => true, '2025-12-31', '2026-11-06')).toBe(e(3.7));
+    expect(dividendesGroupe(i, () => true, '2026-06-30', '2026-11-06')).toBe(e(2));
+  });
+});

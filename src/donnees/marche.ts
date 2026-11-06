@@ -95,3 +95,30 @@ export async function coursParIsin(args: { isin?: string; symbole?: string; devi
   if (!r.ok || j.erreur || typeof j.cours !== 'number') throw new Error(j.erreur ?? `Erreur ${r.status}`);
   return j as CoursRelais;
 }
+
+/**
+ * Indicateur de la règle de krach (§ 5) : MSCI World en euros, dividendes réinvestis.
+ * On suit l'ETF iShares Core MSCI World capitalisant coté à Amsterdam en euros (IWDA.AS).
+ */
+export const SOURCE_MSCI = 'IWDA.AS';
+export const LIBELLE_SOURCE_MSCI = 'iShares Core MSCI World (IWDA, Amsterdam, en euros, dividendes réinvestis)';
+
+export interface PlusHautRelais {
+  symbole: string;
+  date: DateISO;
+  cours: number;
+  plusHaut: number;
+  datePlusHaut: DateISO;
+}
+
+export async function msciWorld(date: DateISO): Promise<PlusHautRelais> {
+  let r: Response;
+  try {
+    r = await fetch(`${RELAIS}/plushaut?symbole=${SOURCE_MSCI}&date=${date}`);
+  } catch {
+    throw new Error(navigator.onLine === false ? 'Pas de connexion internet.' : 'Relais injoignable.');
+  }
+  const j = (await r.json().catch(() => ({}))) as Partial<PlusHautRelais> & { erreur?: string };
+  if (!r.ok || j.erreur || typeof j.cours !== 'number' || typeof j.plusHaut !== 'number') throw new Error(j.erreur ?? `Erreur ${r.status}`);
+  return j as PlusHautRelais;
+}

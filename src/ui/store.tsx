@@ -2,7 +2,7 @@
 import { createContext, type ComponentChildren } from 'preact';
 import { useContext, useEffect, useMemo, useState } from 'preact/hooks';
 import { charger, sauver, type Meta } from '../donnees/stockage';
-import { etatVide, type Etat } from '../donnees/etat';
+import { copie, etatVide, type Etat } from '../donnees/etat';
 import { calculer, type Calculs } from '../donnees/calculs';
 import type { Operation } from '../moteur/types';
 
@@ -71,13 +71,13 @@ export function Fournisseur({ children }: { children: ComponentChildren }) {
     meta,
     calc,
     maj(f) {
-      const copie = structuredClone(etat);
-      f(copie);
-      copie.modifie_le = new Date().toISOString();
+      const nouvel = copie(etat);
+      f(nouvel);
+      nouvel.modifie_le = new Date().toISOString();
       const m = { ...meta, nonSynchronise: true };
-      setEtat(copie);
+      setEtat(nouvel);
       setMeta(m);
-      void sauver(copie, m);
+      void sauver(nouvel, m);
     },
     remplacer(e, m) {
       setEtat(e);

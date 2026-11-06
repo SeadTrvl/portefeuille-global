@@ -9,6 +9,8 @@ import { Satellite } from './Satellite';
 import { Journal } from './Journal';
 import { Reglages } from './Reglages';
 import { Carte } from './commun';
+import { useErrorBoundary } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
 
 const ONGLETS: { ecran: Ecran; libelle: string; icone: string }[] = [
   { ecran: 'tableau', libelle: 'Tableau', icone: 'M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-18v6h8V3z' },
@@ -94,10 +96,48 @@ function Plus() {
   );
 }
 
+/**
+ * Filet de sécurité : si un écran plante, on affiche l'erreur au lieu d'une page blanche,
+ * avec de quoi repartir (recharger, ou effacer les données de cet appareil — le fichier iCloud n'est pas touché).
+ */
+function Protection({ children }: { children: ComponentChildren }) {
+  const [erreur, reinitialiser] = useErrorBoundary((e) => console.error(e));
+  if (!erreur) return <>{children}</>;
+  const texte = `${(erreur as Error).message ?? erreur}\n${((erreur as Error).stack ?? '').split('\n').slice(0, 6).join('\n')}\n${navigator.userAgent}`;
+  return (
+    <main>
+      <Carte titre="Une erreur est survenue">
+        <p>L'application a rencontré un problème. Tes données ne sont pas perdues.</p>
+        <pre class="erreur">{texte}</pre>
+        <div class="boutons">
+          <button class="principal" onClick={() => location.reload()}>Recharger</button>
+          <button onClick={() => reinitialiser()}>Réessayer</button>
+          <button onClick={() => navigator.clipboard?.writeText(texte)}>Copier le message</button>
+          <button
+            class="danger"
+            onClick={async () => {
+              if (!confirm("Effacer les données de cet appareil ? Le fichier iCloud n'est pas touché : tu pourras le rouvrir.")) return;
+              await new Promise((r) => {
+                const q = indexedDB.deleteDatabase('portefeuille-global');
+                q.onsuccess = q.onerror = q.onblocked = () => r(null);
+              });
+              location.reload();
+            }}
+          >
+            Effacer les données de cet appareil
+          </button>
+        </div>
+      </Carte>
+    </main>
+  );
+}
+
 export function App() {
   return (
-    <Fournisseur>
-      <Contenu />
-    </Fournisseur>
+    <Protection>
+      <Fournisseur>
+        <Contenu />
+      </Fournisseur>
+    </Protection>
   );
 }

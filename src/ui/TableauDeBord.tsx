@@ -1,10 +1,10 @@
 // Tableau de bord (§ 9) : poches, bandes de C, alertes, répartition et évolution.
 import { useApp } from './store';
-import { Carte, Eur, Pct, Pastille, Graphique, couleurs, LIBELLES_POCHES, Vide, dateFr } from './commun';
+import { Carte, Eur, Pastille, Graphique, couleurs, LIBELLES_POCHES, Vide, dateFr } from './commun';
 import { LIBELLES_SOUS_POCHES } from '../moteur/alertes';
 import { SOUS_POCHES_C, type Poche } from '../moteur/types';
 import { serieGroupe, debutPeriode, sansDebutVide } from '../moteur/performance';
-import { formatEuros } from '../moteur/montants';
+import { formatEuros, formatPct } from '../moteur/montants';
 
 export function TableauDeBord() {
   const { calc, etat, aller } = useApp();
@@ -106,7 +106,8 @@ export function TableauDeBord() {
                   <div class="bande-tete">
                     <span>{LIBELLES_SOUS_POCHES[k]}</span>
                     <span>
-                      <Pct x={poids} /> <small>/ {Math.round(cible * 1000) / 10} %</small>
+                      {/* Poids réel : rouge hors de la bande, vert dans la bande. */}
+                      <b class={'nombre ' + (hors ? 'negatif' : 'positif')}>{formatPct(poids)}</b> <small>/ {formatPct(cible)}</small>
                     </span>
                   </div>
                   <div class="piste" aria-label={`Bande de ${bas * 100} à ${haut * 100} %`}>
