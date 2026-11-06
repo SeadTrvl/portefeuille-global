@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+# Jamais de données personnelles dans le dépôt
+portefeuille*.json
+!parametres.json
