@@ -9,6 +9,7 @@ import { mesurerSatellite, expositions, decisionSatellite, type MesureSatellite,
 import type { Centimes } from '../moteur/montants';
 import type { DateISO, Projet } from '../moteur/types';
 import { ajouterAnnees } from '../moteur/xirr';
+import { totalCredits } from '../moteur/credits';
 import type { Etat } from './etat';
 
 export function aujourdhui(): DateISO {
@@ -52,6 +53,9 @@ export interface Calculs {
   expositions: ExpositionAction[];
   fraisAnnuels: { frais: Centimes; patrimoineMoyen: Centimes };
   alertes: Alerte[];
+  /** Capital restant dû des crédits inclus, et patrimoine net (brut − crédits si l'option est active). */
+  credits: Centimes;
+  patrimoineNet: Centimes;
   /** § 4 : répartition d'une épargne mensuelle. */
   repartir: (epargne: Centimes) => ResultatFlux;
 }
@@ -163,6 +167,8 @@ export function calculer(etat: Etat, date: DateISO = aujourdhui()): Calculs {
     expositions: expo,
     fraisAnnuels: { frais, patrimoineMoyen },
     alertes,
+    credits: totalCredits(etat.credits ?? [], date),
+    patrimoineNet: s.total - (etat.preferences?.inclureCredits === false ? 0 : totalCredits(etat.credits ?? [], date)),
     repartir
   };
 }

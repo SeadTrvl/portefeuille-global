@@ -774,3 +774,21 @@ pre.erreur {
   padding: 10px;
   border-radius: 8px;
 }
+
+.poche.cliquable:active,
+.bande.cliquable:active {
+  opacity: 0.7;
+}
+
+.poche.cliquable::after {
+  content: '›';
+  float: right;
+  margin-top: -1.6rem;
+  color: var(--texte-doux);
+}
+
+.patrimoine small .lien {
+  font-size: inherit;
+  min-height: 0;
+  padding: 0;
+}

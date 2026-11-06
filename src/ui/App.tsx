@@ -8,6 +8,8 @@ import { Saisie } from './Saisie';
 import { Satellite } from './Satellite';
 import { Journal } from './Journal';
 import { Reglages } from './Reglages';
+import { Credits } from './Credits';
+import { Composition } from './Composition';
 import { Carte } from './commun';
 import { useErrorBoundary } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
@@ -30,13 +32,15 @@ const TITRES: Record<Ecran, string> = {
   saisie: 'Saisie',
   satellite: 'Satellite',
   journal: 'Journal et revues',
-  reglages: 'Réglages'
+  reglages: 'Réglages',
+  credits: 'Crédits',
+  composition: 'Composition'
 };
 
 function Contenu() {
   const { pret, nav, meta, aller } = useApp();
   if (!pret) return <p class="vide">Chargement…</p>;
-  const ongletActif = (['saisie', 'satellite', 'journal', 'reglages'] as Ecran[]).includes(nav.ecran) ? 'plus' : nav.ecran === 'cours' ? 'performances' : nav.ecran;
+  const ongletActif = (['saisie', 'satellite', 'journal', 'reglages', 'credits'] as Ecran[]).includes(nav.ecran) ? 'plus' : nav.ecran === 'cours' ? 'performances' : nav.ecran === 'composition' ? 'tableau' : nav.ecran;
   return (
     <>
       <header class="entete">
@@ -58,6 +62,8 @@ function Contenu() {
         {nav.ecran === 'satellite' && <Satellite />}
         {nav.ecran === 'journal' && <Journal />}
         {nav.ecran === 'reglages' && <Reglages />}
+        {nav.ecran === 'credits' && <Credits />}
+        {nav.ecran === 'composition' && <Composition />}
         <p class="mention">Outil d'organisation personnel : il calcule et propose, il ne passe aucun ordre. Ce n'est pas un conseil en investissement.</p>
       </main>
       <nav class="onglets">
@@ -80,6 +86,7 @@ function Plus() {
     ['saisie', 'Saisie', 'Comptes, actifs et opérations'],
     ['satellite', 'Satellite', 'Fiches, watchlist, portefeuille fantôme'],
     ['journal', 'Journal et revues', 'Décisions, revue trimestrielle et annuelle'],
+    ['credits', 'Crédits', 'Crédits en cours, patrimoine brut et net'],
     ['reglages', 'Réglages', 'Synchronisation iCloud, profil, B-Projet, paramètres']
   ];
   return (

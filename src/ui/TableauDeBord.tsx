@@ -7,7 +7,8 @@ import { serieGroupe, debutPeriode, sansDebutVide } from '../moteur/performance'
 import { formatEuros, formatPct } from '../moteur/montants';
 
 export function TableauDeBord() {
-  const { calc, etat, aller } = useApp();
+  const { calc, etat, aller, maj } = useApp();
+  const avecCredits = etat.preferences?.inclureCredits !== false && calc.credits > 0;
   const { s, p } = calc;
 
   if (etat.actifs.length === 0) {
@@ -52,14 +53,26 @@ export function TableauDeBord() {
     <>
       <Carte>
         <div class="patrimoine">
-          <span>Patrimoine total</span>
+          <span>{avecCredits ? 'Patrimoine net' : 'Patrimoine total'}</span>
           <strong>
-            <Eur c={s.total} />
+            <Eur c={avecCredits ? calc.patrimoineNet : s.total} />
           </strong>
+          {calc.credits > 0 && (
+            <small>
+              {avecCredits ? <>Brut <Eur c={s.total} /> · crédits −<Eur c={calc.credits} /></> : <>Crédits en cours non déduits (<Eur c={calc.credits} />)</>}
+              {' · '}
+              <button
+                class="lien"
+                onClick={() => maj((e) => { e.preferences = { ...e.preferences, inclureCredits: !avecCredits }; })}
+              >
+                {avecCredits ? 'Afficher sans les crédits' : 'Déduire les crédits'}
+              </button>
+            </small>
+          )}
         </div>
         <div class="grille-poches">
           {poches.map(({ k, cible, detail }) => (
-            <div class="poche">
+            <div class="poche cliquable" onClick={() => aller('composition', k)} title="Voir la composition">
               <span class="etiquette">{LIBELLES_POCHES[k]}</span>
               <strong>
                 <Eur c={s.parPoche[k]} />
@@ -90,7 +103,7 @@ export function TableauDeBord() {
         )}
       </Carte>
 
-      <Carte titre="C — Long terme : poids et bandes">
+      <Carte titre="C — Long terme : poids et bandes" action={<button class="lien" onClick={() => aller('composition', 'C')}>Détail →</button>}>
         {s.C === 0 ? (
           <Vide>Aucun actif dans C pour l'instant.</Vide>
         ) : (
@@ -102,7 +115,7 @@ export function TableauDeBord() {
               const hors = poids < bas - 1e-9 || poids > haut + 1e-9;
               const echelle = 0.7; // 70 % = largeur pleine
               return (
-                <div class="bande">
+                <div class="bande cliquable" onClick={() => aller('composition', k)} title="Voir la composition">
                   <div class="bande-tete">
                     <span>{LIBELLES_SOUS_POCHES[k]}</span>
                     <span>

@@ -15,6 +15,7 @@ import type {
   ReleveIndice,
   Valorisation
 } from '../moteur/types';
+import type { Credit } from '../moteur/credits';
 
 export const VERSION_SCHEMA = 1;
 
@@ -49,6 +50,9 @@ export interface Etat {
   etatSatellite: EtatSatellite;
   /** Revues cochées : clé « 2026-T4:item » ou « 2026-A:item ». */
   revues: Record<string, boolean>;
+  /** Crédits en cours (hors guide : seulement pour le patrimoine net). */
+  credits: Credit[];
+  preferences: { inclureCredits: boolean };
 }
 
 export function etatVide(): Etat {
@@ -70,7 +74,9 @@ export function etatVide(): Etat {
     journal: [],
     projets: [],
     etatSatellite: { cible: PARAMETRES_BRUTS_DEFAUT.SAT_CIBLE_DEFAUT },
-    revues: {}
+    revues: {},
+    credits: [],
+    preferences: { inclureCredits: true }
   };
 }
 

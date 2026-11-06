@@ -16,7 +16,9 @@ export type Ecran =
   | 'saisie'
   | 'satellite'
   | 'journal'
-  | 'reglages';
+  | 'reglages'
+  | 'credits'
+  | 'composition';
 
 export interface Navigation {
   ecran: Ecran;
