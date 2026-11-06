@@ -33,7 +33,12 @@ export function portefeuilleFantome(idx: Index): { operations: OperationFantome[
         continue;
       }
       const montant = signe * op.montant;
-      operations.push({ id: 'f-' + op.id, date: op.date, montant, coursEtf: c.cours, parts: montant / 100 / c.cours, operationId: op.id });
+      const coursEur = idx.versEuros(ref!, c.cours, op.date); // cours de l'ETF en euros
+      if (coursEur <= 0) {
+        coursManquants.push(op.date);
+        continue;
+      }
+      operations.push({ id: 'f-' + op.id, date: op.date, montant, coursEtf: coursEur, parts: montant / 100 / coursEur, operationId: op.id });
     }
   }
   operations.sort((a, b) => a.date.localeCompare(b.date));
@@ -45,7 +50,7 @@ function valeurFantome(idx: Index, ops: OperationFantome[], date: DateISO): Cent
   const c = ref ? idx.dernierCours(ref.id, date) : null;
   if (!c) return 0;
   const parts = ops.filter((o) => o.date <= date).reduce((s, o) => s + o.parts, 0);
-  return Math.round(parts * c.cours * 100);
+  return Math.round(idx.versEuros(ref!, parts * c.cours, date) * 100);
 }
 
 /** TRI du portefeuille fantôme sur une fenêtre. */

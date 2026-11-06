@@ -65,6 +65,19 @@ export interface Compte {
  */
 export type ModeValorisation = 'cours' | 'valeur';
 
+/** Devise de cotation d'un actif. Tous les calculs du guide restent en euros. */
+export type Devise = 'EUR' | 'USD';
+
+/**
+ * Taux de change EUR/USD saisi à la main : 1 € = `usdParEur` $ (ex. 1,08).
+ * Valeur en euros = montant en dollars / usdParEur.
+ */
+export interface TauxChange {
+  id: string;
+  date: DateISO;
+  usdParEur: number;
+}
+
 export interface Actif {
   id: string;
   nom: string;
@@ -74,6 +87,8 @@ export interface Actif {
   compteId?: string;
   fraisCourants?: number; // décimal, 0.002 = 0,2 % par an
   mode: ModeValorisation;
+  /** Devise de cotation (EUR par défaut). Les cours d'un actif en USD sont saisis en dollars. */
+  devise?: Devise;
   /** Vrai pour l'ETF MSCI World qui sert au portefeuille fantôme et à l'attente du Satellite. */
   etfWorldReference?: boolean;
   archive?: boolean;
@@ -95,9 +110,12 @@ export interface Operation {
   actifId: string;
   type: TypeOperation;
   quantite?: number;
-  prix?: number; // en euros, par part
-  montant: Centimes; // toujours positif ; le sens vient du type
-  frais: Centimes;
+  prix?: number; // par part, dans la devise de l'actif
+  montant: Centimes; // en euros, toujours positif ; le sens vient du type
+  frais: Centimes; // en euros
+  /** Actif en dollars : montant de l'opération en cents de dollar, et taux appliqué (1 € = taux $). */
+  montantDevise?: Centimes;
+  taux?: number;
   regle?: string; // règle déclenchée (ex. « § 4 flux mensuels »)
   /**
    * Sous-poche de rattachement si différente de celle de l'actif.
@@ -113,8 +131,9 @@ export interface Valorisation {
   date: DateISO;
   actifId: string;
   quantite?: number;
-  cours?: number; // euros par part
-  valeur: Centimes;
+  cours?: number; // par part, dans la devise de l'actif
+  taux?: number; // actif en dollars : taux EUR/USD utilisé pour la valeur en euros
+  valeur: Centimes; // en euros
 }
 
 export interface FluxMensuel {

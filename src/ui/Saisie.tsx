@@ -18,8 +18,8 @@ import {
 } from './commun';
 import { nouvelId } from '../donnees/etat';
 import { aujourdhui } from '../donnees/calculs';
-import { versCentimes } from '../moteur/montants';
-import type { Actif, Compte, Ligne, Operation, Poche, TypeCompte, TypeOperation } from '../moteur/types';
+import { formatDollars, versCentimes } from '../moteur/montants';
+import type { Actif, Compte, Devise, Ligne, Operation, Poche, TypeCompte, TypeOperation } from '../moteur/types';
 
 type Onglet = 'operation' | 'actifs' | 'comptes';
 
@@ -136,8 +136,19 @@ function Actifs() {
               ['cours', 'Par cours (quantité × cours)'],
               ['valeur', 'Par valeur du contrat (fonds euros, livret)']
             ]}
-            onChange={(mode) => setA({ ...a, mode })}
+            onChange={(mode) => setA({ ...a, mode, devise: mode === 'valeur' ? undefined : a.devise })}
           />
+          {a.mode === 'cours' && (
+            <ChampChoix<Devise>
+              libelle="Devise de cotation"
+              valeur={a.devise ?? 'EUR'}
+              options={[
+                ['EUR', 'Euro (€)'],
+                ['USD', 'Dollar US ($)']
+              ]}
+              onChange={(devise) => setA({ ...a, devise: devise === 'EUR' ? undefined : devise })}
+            />
+          )}
           <ChampChoix
             libelle="Compte"
             valeur={a.compteId ?? ''}
@@ -193,6 +204,7 @@ function Actifs() {
                 </div>
                 <small>
                   {LIBELLES_POCHES[x.poche]} · {LIBELLES_LIGNES[x.ligne]}
+                  {x.devise === 'USD' ? ' · en dollars' : ''}
                   {x.etfWorldReference ? ' · référence fantôme' : ''}
                 </small>
               </li>
@@ -207,7 +219,7 @@ function Actifs() {
 const TYPES_OP: TypeOperation[] = ['achat', 'vente', 'versement', 'retrait', 'dividende', 'interets', 'frais'];
 
 function Operations() {
-  const { etat, maj, brouillon, viderBrouillon } = useApp();
+  const { etat, maj, brouillon, viderBrouillon, calc } = useApp();
   const nouvelle = (): Operation => ({ id: '', date: aujourdhui(), actifId: etat.actifs[0]?.id ?? '', type: 'achat', montant: 0, frais: 0 });
   const [o, setO] = useState<Operation>(nouvelle());
   const [filtre, setFiltre] = useState('');
@@ -222,13 +234,28 @@ function Operations() {
   const actif = etat.actifs.find((x) => x.id === o.actifId);
   const avecQuantite = actif?.mode === 'cours' && (o.type === 'achat' || o.type === 'vente');
 
-  function changerQuantitePrix(q: number | null, prix: number | null) {
-    const n = { ...o, quantite: q ?? undefined, prix: prix ?? undefined };
-    if (q !== null && prix !== null) n.montant = versCentimes(q * prix);
-    setO(n);
-  }
+  const enDollars = actif?.devise === 'USD';
+  // Taux proposé pour un actif en dollars : celui de l'opération, sinon le dernier connu à la date.
+  const tauxPropose = o.taux ?? calc.idx.tauxA(o.date)?.usdParEur;
 
-  const valide = !!actif && o.montant > 0 && (!avecQuantite || (o.quantite ?? 0) > 0);
+  /** Recalcule les montants : en dollars, montant $ = quantité × prix, puis montant € = montant $ / taux. */
+  function recalculer(n: Operation): Operation {
+    const avecQ = actif?.mode === 'cours' && (n.type === 'achat' || n.type === 'vente');
+    if (enDollars) {
+      if (avecQ && n.quantite && n.prix !== undefined) n.montantDevise = versCentimes(n.quantite * n.prix);
+      const t = n.taux ?? tauxPropose;
+      if (n.montantDevise && t) {
+        n.taux = t;
+        n.montant = Math.round(n.montantDevise / t);
+      }
+    } else if (avecQ && n.quantite && n.prix !== undefined) {
+      n.montant = versCentimes(n.quantite * n.prix);
+    }
+    return n;
+  }
+  const changer = (modif: Partial<Operation>) => setO(recalculer({ ...o, ...modif }));
+
+  const valide = !!actif && o.montant > 0 && (!avecQuantite || (o.quantite ?? 0) > 0) && (!enDollars || !!o.taux);
   const liste = [...etat.operations]
     .filter((x) => !filtre || x.actifId === filtre)
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -251,12 +278,33 @@ function Operations() {
           <ChampChoix libelle="Type" valeur={o.type} options={TYPES_OP.map((t) => [t, LIBELLES_TYPES[t]])} onChange={(type) => setO({ ...o, type })} />
           {avecQuantite && (
             <>
-              <ChampNombre libelle="Quantité" valeur={o.quantite} onChange={(q) => changerQuantitePrix(q, o.prix ?? null)} />
-              <ChampNombre libelle="Prix unitaire (€)" valeur={o.prix} onChange={(p) => changerQuantitePrix(o.quantite ?? null, p)} />
+              <ChampNombre libelle="Quantité" valeur={o.quantite} onChange={(q) => changer({ quantite: q ?? undefined })} />
+              <ChampNombre libelle={`Prix unitaire (${enDollars ? '$' : '€'})`} valeur={o.prix} onChange={(p) => changer({ prix: p ?? undefined })} />
             </>
           )}
-          <ChampMontant libelle="Montant" valeur={o.montant || null} onChange={(m) => setO({ ...o, montant: m ?? 0 })} aide={avecQuantite ? 'Calculé : quantité × prix' : undefined} />
-          <ChampMontant libelle="Frais" valeur={o.frais || null} onChange={(m) => setO({ ...o, frais: m ?? 0 })} />
+          {enDollars && (
+            <>
+              <ChampMontant
+                libelle="Montant en dollars"
+                valeur={o.montantDevise ?? null}
+                onChange={(m) => changer({ montantDevise: m ?? undefined })}
+                aide={avecQuantite ? 'Calculé : quantité × prix' : undefined}
+              />
+              <ChampNombre
+                libelle="Taux de change : 1 € = … $"
+                valeur={tauxPropose ?? null}
+                onChange={(t) => changer({ taux: t && t > 0 ? t : undefined })}
+                aide="Taux appliqué par ton courtier (ex. 1,08)"
+              />
+            </>
+          )}
+          <ChampMontant
+            libelle={enDollars ? 'Montant en euros' : 'Montant'}
+            valeur={o.montant || null}
+            onChange={(m) => setO({ ...o, montant: m ?? 0 })}
+            aide={enDollars ? 'Calculé : montant $ ÷ taux. Ajuste-le au montant réellement débité ou crédité en euros.' : avecQuantite ? 'Calculé : quantité × prix' : undefined}
+          />
+          <ChampMontant libelle={enDollars ? 'Frais (en euros)' : 'Frais'} valeur={o.frais || null} onChange={(m) => setO({ ...o, frais: m ?? 0 })} />
           {actif?.ligne === 'world' && actif.poche === 'C' && (
             <label class="case">
               <input type="checkbox" checked={o.ligne === 'satellite'} onChange={(e) => setO({ ...o, ligne: (e.target as HTMLInputElement).checked ? 'satellite' : undefined })} />
@@ -326,7 +374,8 @@ function Operations() {
                   </div>
                   <small>
                     {dateFr(x.date)}
-                    {x.quantite ? ` · ${x.quantite.toLocaleString('fr-FR')} × ${x.prix?.toLocaleString('fr-FR')} €` : ''}
+                    {x.quantite ? ` · ${x.quantite.toLocaleString('fr-FR')} × ${x.prix?.toLocaleString('fr-FR')} ${a?.devise === 'USD' ? '$' : '€'}` : ''}
+                    {x.montantDevise ? ` · ${formatDollars(x.montantDevise)} à ${x.taux?.toLocaleString('fr-FR')}` : ''}
                     {x.ligne === 'satellite' ? ' · Satellite en attente' : ''}
                     {x.regle ? ` · ${x.regle}` : ''}
                   </small>

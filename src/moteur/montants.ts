@@ -19,6 +19,18 @@ export function formatEuros(c: Centimes): string {
   return formatEurosFr.format(c / 100);
 }
 
+const formatDollarsFr = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD', currencyDisplay: 'narrowSymbol' });
+
+/** Format français d'un montant en dollars : 1 234,56 $ */
+export function formatDollars(c: Centimes): string {
+  return formatDollarsFr.format(c / 100);
+}
+
+/** Format d'un montant dans une devise (centimes ou cents). */
+export function formatDevise(c: Centimes, devise: 'EUR' | 'USD' = 'EUR'): string {
+  return devise === 'USD' ? formatDollars(c) : formatEuros(c);
+}
+
 /** Format français d'un pourcentage : 0.075 → « 7,5 % ». */
 export function formatPct(x: number, decimales = 1): string {
   if (!Number.isFinite(x)) return '—';

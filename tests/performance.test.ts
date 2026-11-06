@@ -87,3 +87,44 @@ describe('Satellite', () => {
     expect(m.statut).toBe('historique_insuffisant');
   });
 });
+
+describe('Actifs en dollars', () => {
+  const us: Actif = { id: 'us', nom: 'Action US', poche: 'C', ligne: 'satellite', mode: 'cours', devise: 'USD' };
+  const opsUs: Operation[] = [
+    // 10 actions à 108 $ au taux 1,08 → 1 080 $ = 1 000 €, plus 1 € de frais
+    { id: 'u1', date: '2026-01-15', actifId: 'us', type: 'achat', quantite: 10, prix: 108, montant: e(1000), frais: e(1), montantDevise: 108000, taux: 1.08 },
+    { id: 'u2', date: '2026-07-15', actifId: 'us', type: 'vente', quantite: 4, prix: 120, montant: e(400), frais: e(1), montantDevise: 48000, taux: 1.2 }
+  ];
+  const valosUs: Valorisation[] = [{ id: 'uv', date: '2026-10-01', actifId: 'us', cours: 125, taux: 1.25, quantite: 6, valeur: e(600) }];
+  const i = new Index({ actifs: [us], operations: opsUs, valorisations: valosUs, tauxChange: [{ id: 't', date: '2026-11-01', usdParEur: 1.1 }] });
+
+  it('valeur en euros = quantité × cours $ / taux du jour', () => {
+    expect(i.valeur('us', '2026-01-15')).toBe(e(1000));
+    expect(i.valeur('us', '2026-10-01')).toBe(e(600)); // 6 × 125 / 1,25
+    expect(i.valeur('us', '2026-11-02')).toBe(Math.round((6 * 125 * 100) / 1.1)); // nouveau taux, même cours
+  });
+  it('PRU en euros (prix de revient fiscal) et en dollars', () => {
+    const s = statsActif(i, us, '2026-10-01');
+    expect(s.quantite).toBe(6);
+    expect(s.pru).toBeCloseTo(100.1, 10); // (1 000 + 1) € / 10
+    expect(s.pvRealisee).toBe(e(400 - 1 - 400.4));
+    expect(s.devise!.pru).toBeCloseTo(108, 10);
+    expect(s.devise!.valeur).toBe(75000);
+    expect(s.devise!.pvLatentePct).toBeCloseTo(125 / 108 - 1, 10);
+    // Le dollar a baissé (1,08 → 1,25) : +15,7 % en dollars, mais environ 0 % en euros.
+    expect(s.pvLatentePct!).toBeCloseTo(600 / 600.6 - 1, 10);
+  });
+  it('le même jour, le taux saisi pour la journée prime sur celui de l’opération', () => {
+    const j = new Index({
+      actifs: [us],
+      operations: [{ ...opsUs[0], date: '2026-11-06' }],
+      valorisations: [],
+      tauxChange: [{ id: 't', date: '2026-11-06', usdParEur: 1.1 }]
+    });
+    expect(j.tauxA('2026-11-06')!.usdParEur).toBe(1.1);
+  });
+  it('dernier taux connu', () => {
+    expect(i.tauxA('2026-10-15')!.usdParEur).toBe(1.25);
+    expect(i.tauxA('2025-01-01')).toBeNull();
+  });
+});

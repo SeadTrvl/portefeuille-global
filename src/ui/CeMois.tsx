@@ -2,7 +2,7 @@
 import { useState } from 'preact/hooks';
 import { useApp } from './store';
 import { Carte, ChampMontant, Eur, Pct, Vide, LIBELLES_LIGNES } from './commun';
-import type { Centimes } from '../moteur/montants';
+import { formatDollars, type Centimes } from '../moteur/montants';
 import type { Actif, Ligne, Operation, Poche } from '../moteur/types';
 import { LIBELLES_SOUS_POCHES } from '../moteur/alertes';
 
@@ -58,6 +58,7 @@ export function CeMois() {
   if (r.versMP.panier > 0) ordres.push({ libelle: 'C — Panier matières premières', detail: 'Matières premières', montant: r.versMP.panier, actif: trouver('C', ['panier']) });
   if (r.versC.fun > 0) ordres.push({ libelle: 'C — Fun / alternatifs', detail: 'Peut perdre 100 %', montant: r.versC.fun, actif: trouver('C', ['fun']) });
 
+  const tauxUsd = calc.idx.tauxA(calc.date);
   const dejaFait = etat.fluxMensuels.find((f) => f.mois === mois);
 
   function enregistrer() {
@@ -126,6 +127,7 @@ export function CeMois() {
                   <div class="ordre-droite">
                     <strong>
                       <Eur c={o.montant} />
+                      {o.actif?.devise === 'USD' && tauxUsd && <small>≈ {formatDollars(Math.round(o.montant * tauxUsd.usdParEur))}</small>}
                     </strong>
                     {o.actif && (
                       <button class="petit" onClick={() => saisir(o)}>

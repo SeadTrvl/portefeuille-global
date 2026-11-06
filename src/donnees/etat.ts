@@ -10,6 +10,7 @@ import type {
   FluxMensuel,
   Operation,
   Profil,
+  TauxChange,
   Projet,
   ReleveIndice,
   Valorisation
@@ -28,6 +29,8 @@ export interface Etat {
   actifs: Actif[];
   operations: Operation[];
   valorisations: Valorisation[];
+  /** Taux EUR/USD saisis à la main (1 € = x $). */
+  tauxChange: TauxChange[];
   fluxMensuels: FluxMensuel[];
   indice: ReleveIndice[];
   fiches: FicheSatellite[];
@@ -50,6 +53,7 @@ export function etatVide(): Etat {
     actifs: [],
     operations: [],
     valorisations: [],
+    tauxChange: [],
     fluxMensuels: [],
     indice: [],
     fiches: [],

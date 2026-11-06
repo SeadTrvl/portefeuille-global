@@ -3,7 +3,7 @@ import { useState } from 'preact/hooks';
 import { useApp } from './store';
 import { Carte, ChampDate, Eur, Pct, Graphique, couleurs, Vide, dateFr, LIBELLES_LIGNES, LIBELLES_POCHES } from './commun';
 import { statsActif, serieGroupe, sansDebutVide, twrGroupe, triGroupe, debutPeriode, LIBELLES_PERIODES, type Periode, type Selection } from '../moteur/performance';
-import { lireNombre, lireMontant, formatEuros } from '../moteur/montants';
+import { lireNombre, lireMontant, formatEuros, formatDevise } from '../moteur/montants';
 import { LIBELLES_SOUS_POCHES } from '../moteur/alertes';
 import { SOUS_POCHES_C, sousPocheDe, type Actif, type Poche, type SousPocheC } from '../moteur/types';
 import { nouvelId } from '../donnees/etat';
@@ -76,7 +76,7 @@ export function Performances() {
                           />
                         </label>
                         <b>{a.nom}</b>
-                        <small>{LIBELLES_LIGNES[a.ligne]}{st.dernierCours ? ` · cours du ${dateFr(st.dernierCours.date)}` : st.dateDernierReleve ? ` · relevé du ${dateFr(st.dateDernierReleve)}` : ''}</small>
+                        <small>{LIBELLES_LIGNES[a.ligne]}{a.devise === 'USD' ? ' · en $' : ''}{st.dernierCours ? ` · cours du ${dateFr(st.dernierCours.date)}` : st.dateDernierReleve ? ` · relevé du ${dateFr(st.dateDernierReleve)}` : ''}</small>
                       </td>
                       <td><Eur c={st.valeur} /></td>
                       <td>
@@ -179,6 +179,7 @@ function FicheActif({ actif, periode, setPeriode }: { actif: Actif; periode: Per
   const twr = twrGroupe(calc.idx, sel, debut, calc.date);
   const tri = triGroupe(calc.idx, sel, debut, calc.date);
   const ops = calc.idx.ops(actif.id);
+  const taux = actif.devise === 'USD' ? calc.idx.tauxA(calc.date) : null;
   const cours = [
     ...calc.idx.valos(actif.id).filter((v) => v.cours !== undefined).map((v) => ({ date: v.date, cours: v.cours! })),
     ...ops.filter((o) => o.prix !== undefined).map((o) => ({ date: o.date, cours: o.prix! }))
@@ -197,14 +198,19 @@ function FicheActif({ actif, periode, setPeriode }: { actif: Actif; periode: Per
           {actif.mode === 'cours' ? (
             <>
               <div><span>Quantité</span><strong>{st.quantite.toLocaleString('fr-FR', { maximumFractionDigits: 6 })}</strong></div>
-              <div><span>PRU</span><strong>{st.pru !== null ? formatEuros(Math.round(st.pru * 100)) : '—'}</strong></div>
-              <div><span>Dernier cours</span><strong>{st.dernierCours ? formatEuros(Math.round(st.dernierCours.cours * 100)) : '—'}</strong><small>{dateFr(st.dernierCours?.date)}</small></div>
+              <div><span>PRU en euros</span><strong>{st.pru !== null ? formatEuros(Math.round(st.pru * 100)) : '—'}</strong><small>frais inclus, prix de revient fiscal</small></div>
+              {st.devise && <div><span>PRU en dollars</span><strong>{st.devise.pru !== null ? formatDevise(Math.round(st.devise.pru * 100), 'USD') : '—'}</strong></div>}
+              <div><span>Dernier cours</span><strong>{st.dernierCours ? formatDevise(Math.round(st.dernierCours.cours * 100), actif.devise) : '—'}</strong><small>{dateFr(st.dernierCours?.date)}</small></div>
+              {taux && <div><span>Taux EUR/USD</span><strong>1 € = {taux.usdParEur.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} $</strong><small>{dateFr(taux.date)}</small></div>}
             </>
           ) : (
             <div><span>Dernier relevé</span><strong>{dateFr(st.dateDernierReleve)}</strong></div>
           )}
           <div><span>Investi</span><strong><Eur c={st.investi} /></strong></div>
-          <div><span>+/− latente</span><strong><Eur c={st.pvLatente} /></strong><small><Pct x={st.pvLatentePct} /></small></div>
+          <div><span>+/− latente{st.devise ? ' en euros' : ''}</span><strong><Eur c={st.pvLatente} /></strong><small><Pct x={st.pvLatentePct} /></small></div>
+          {st.devise && (
+            <div><span>+/− latente en dollars</span><strong>{formatDevise(st.devise.pvLatente, 'USD')}</strong><small><Pct x={st.devise.pvLatentePct} /> hors effet de change</small></div>
+          )}
           <div><span>+/− réalisée</span><strong><Eur c={st.pvRealisee} /></strong></div>
           <div><span>{actif.mode === 'cours' ? 'Dividendes' : 'Intérêts'}</span><strong><Eur c={actif.mode === 'cours' ? st.dividendes : st.interets} /></strong></div>
           <div><span>Frais</span><strong><Eur c={st.frais} /></strong></div>
@@ -237,7 +243,7 @@ function FicheActif({ actif, periode, setPeriode }: { actif: Actif; periode: Per
         />
         {actif.mode === 'cours' && cours.length > 0 && (
           <>
-            <h3>Cours, achats et ventes</h3>
+            <h3>Cours, achats et ventes{actif.devise === 'USD' ? ' (en dollars)' : ''}</h3>
             <Graphique
               config={() => {
                 const c = couleurs();
@@ -267,7 +273,10 @@ function FicheActif({ actif, periode, setPeriode }: { actif: Actif; periode: Per
             };
           }}
         />
-        <p class="doux">Entre deux relevés, la valeur reste celle du dernier cours connu.</p>
+        <p class="doux">
+          Entre deux relevés, la valeur reste celle du dernier cours connu.
+          {actif.devise === 'USD' && ' Valeurs, performance et TRI en euros (effet de change inclus) ; cours en dollars.'}
+        </p>
       </Carte>
     </>
   );
@@ -288,11 +297,19 @@ export function MiseAJourCours() {
   const [date, setDate] = useState(aujourdhui());
   const [saisies, setSaisies] = useState<Record<string, string>>({});
   const [fait, setFait] = useState(0);
+  const [taux, setTaux] = useState('');
+  const dernierTaux = calc.idx.tauxA(calc.date);
   const detenus = etat.actifs.filter((a) => !a.archive && (calc.idx.valeur(a.id, calc.date) !== 0 || calc.idx.quantite(a.id, calc.date) !== 0));
 
   function toutEnregistrer() {
     let n = 0;
+    const t = lireNombre(taux);
+    const tauxJour = t && t > 0 ? t : null;
     maj((e) => {
+      if (tauxJour) {
+        e.tauxChange = (e.tauxChange ?? []).filter((x) => x.date !== date);
+        e.tauxChange.push({ id: nouvelId(), date, usdParEur: tauxJour });
+      }
       for (const a of detenus) {
         const t = saisies[a.id];
         if (!t) continue;
@@ -300,8 +317,11 @@ export function MiseAJourCours() {
           const cours = lireNombre(t);
           if (cours === null || cours <= 0) continue;
           const q = calc.idx.quantite(a.id, date);
+          // Actif en dollars : valeur en euros au taux du jour (ou au dernier taux connu).
+          const tx = a.devise === 'USD' ? tauxJour ?? calc.idx.tauxA(date)?.usdParEur ?? null : null;
+          if (a.devise === 'USD' && !tx) continue;
           e.valorisations = e.valorisations.filter((v) => !(v.actifId === a.id && v.date === date));
-          e.valorisations.push({ id: nouvelId(), date, actifId: a.id, quantite: q, cours, valeur: Math.round(q * cours * 100) });
+          e.valorisations.push({ id: nouvelId(), date, actifId: a.id, quantite: q, cours, taux: tx ?? undefined, valeur: Math.round(((q * cours) / (tx ?? 1)) * 100) });
         } else {
           const valeur = lireMontant(t);
           if (valeur === null) continue;
@@ -320,6 +340,15 @@ export function MiseAJourCours() {
       <button class="lien retour" onClick={() => aller('performances')}>← Performances</button>
       <Carte titre="Mettre à jour les cours">
         <ChampDate libelle="Date du relevé" valeur={date} onChange={setDate} />
+        {detenus.some((a) => a.devise === 'USD') && (
+          <label class="champ">
+            <span>Taux de change du jour : 1 € = … $</span>
+            <input inputMode="decimal" placeholder={dernierTaux ? dernierTaux.usdParEur.toLocaleString('fr-FR') : 'ex. 1,08'} value={taux} onInput={(e) => setTaux((e.target as HTMLInputElement).value)} />
+            <small>
+              {dernierTaux ? `Dernier taux : ${dernierTaux.usdParEur.toLocaleString('fr-FR')} le ${dateFr(dernierTaux.date)}. Laisse vide pour le garder.` : 'Obligatoire pour valoriser les actifs en dollars.'}
+            </small>
+          </label>
+        )}
         {detenus.length === 0 ? (
           <Vide>Aucun actif détenu.</Vide>
         ) : (
@@ -334,14 +363,14 @@ export function MiseAJourCours() {
                     <small>
                       {a.mode === 'cours'
                         ? dc
-                          ? `Dernier cours : ${formatEuros(Math.round(dc.cours * 100))} le ${dateFr(dc.date)}`
+                          ? `Dernier cours : ${formatDevise(Math.round(dc.cours * 100), a.devise)} le ${dateFr(dc.date)}`
                           : 'Aucun cours'
                         : `Valeur actuelle : ${formatEuros(calc.idx.valeur(a.id, calc.date))}${derniereValo ? ` (relevé du ${dateFr(derniereValo.date)})` : ''}`}
                     </small>
                   </div>
                   <input
                     inputMode="decimal"
-                    placeholder={a.mode === 'cours' ? 'Cours €' : 'Valeur €'}
+                    placeholder={a.mode === 'cours' ? (a.devise === 'USD' ? 'Cours $' : 'Cours €') : 'Valeur €'}
                     value={saisies[a.id] ?? ''}
                     onInput={(e) => setSaisies({ ...saisies, [a.id]: (e.target as HTMLInputElement).value })}
                   />
@@ -352,11 +381,14 @@ export function MiseAJourCours() {
         )}
         <p class="doux">Actifs cotés : saisis le cours par part. Fonds euros, livrets, monétaire : saisis la valeur totale du contrat.</p>
         <div class="boutons">
-          <button class="principal" onClick={toutEnregistrer} disabled={Object.values(saisies).every((x) => !x)}>
+          <button class="principal" onClick={toutEnregistrer} disabled={Object.values(saisies).every((x) => !x) && !taux}>
             Tout enregistrer
           </button>
         </div>
         {fait > 0 && <p class="succes">{fait} relevé(s) enregistré(s).</p>}
+        {detenus.some((a) => a.devise === 'USD') && !dernierTaux && !taux && Object.entries(saisies).some(([id, v]) => v && etat.actifs.find((a) => a.id === id)?.devise === 'USD') && (
+          <p class="avertissement">Saisis le taux du jour : sans lui, les cours en dollars ne peuvent pas être convertis en euros.</p>
+        )}
       </Carte>
     </>
   );

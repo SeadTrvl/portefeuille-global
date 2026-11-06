@@ -54,6 +54,7 @@ L'outil **calcule et propose** ; il ne passe jamais d'ordre et ne se connecte à
 - Moteur de calcul pur dans `src/moteur/`, sans interface ; montants en centimes entiers.
 - Données en local (IndexedDB) ; synchronisation manuelle par un fichier `portefeuille.json` dans iCloud Drive (`Finance/Gestionnaire Personnel/donnees/`).
 - Suivi des performances par actif (PRU, plus-values, TRI, TWR, graphiques), à partir des cours saisis à la main.
+- Actifs en dollars : cours en $, taux EUR/USD saisi à la main (1 € = x $) ; tous les calculs du guide restent en euros, effet de change inclus. Le même jour, le taux saisi pour la journée prime sur celui d'un relevé, puis sur celui d'une opération.
 
 ## Cas de test à faire passer
 

@@ -1,12 +1,13 @@
 // Valeur des actifs, poches et sous-poches à partir des opérations et des valorisations (§ 10, calcul 1).
 import type { Centimes } from './montants';
-import type { Actif, DateISO, Ligne, LigneCore, LigneMP, Operation, Poche, SousPocheC, Valorisation } from './types';
+import type { Actif, DateISO, Ligne, LigneCore, LigneMP, Operation, Poche, SousPocheC, TauxChange, Valorisation } from './types';
 import { LIGNES_CORE, LIGNES_MP, SOUS_POCHES_C, sousPocheDe } from './types';
 
 export interface Donnees {
   actifs: Actif[];
   operations: Operation[];
   valorisations: Valorisation[];
+  tauxChange?: TauxChange[];
 }
 
 /** Ligne de rattachement d'une opération (CLAUDE.md : champ sous_poche, ex. Satellite en attente sur l'ETF World). */
@@ -23,8 +24,16 @@ export class Index {
   opsParActif = new Map<string, Operation[]>();
   valosParActif = new Map<string, Valorisation[]>();
   actifsParId = new Map<string, Actif>();
+  /** Taux EUR/USD connus (table des taux, relevés de cours et opérations en dollars), triés par date. */
+  taux: { date: DateISO; usdParEur: number }[] = [];
 
   constructor(public d: Donnees) {
+    // Le même jour, priorité au taux saisi pour la journée, puis à celui d'un relevé, puis à celui d'une opération :
+    // le tri est stable et tauxA() prend le dernier taux de la date.
+    for (const op of d.operations) if (op.taux && op.taux > 0) this.taux.push({ date: op.date, usdParEur: op.taux });
+    for (const v of d.valorisations) if (v.taux && v.taux > 0) this.taux.push({ date: v.date, usdParEur: v.taux });
+    for (const t of d.tauxChange ?? []) if (t.usdParEur > 0) this.taux.push({ date: t.date, usdParEur: t.usdParEur });
+    this.taux.sort((a, b) => a.date.localeCompare(b.date));
     for (const a of d.actifs) this.actifsParId.set(a.id, a);
     for (const op of trierParDate(d.operations)) {
       if (!this.opsParActif.has(op.actifId)) this.opsParActif.set(op.actifId, []);
@@ -34,6 +43,23 @@ export class Index {
       if (!this.valosParActif.has(v.actifId)) this.valosParActif.set(v.actifId, []);
       this.valosParActif.get(v.actifId)!.push(v);
     }
+  }
+
+  /** Dernier taux EUR/USD connu à une date (1 € = x $), ou null. */
+  tauxA(date: DateISO): { usdParEur: number; date: DateISO } | null {
+    let t: { usdParEur: number; date: DateISO } | null = null;
+    for (const x of this.taux) {
+      if (x.date > date) break;
+      t = x;
+    }
+    return t;
+  }
+
+  /** Convertit un montant de la devise de l'actif en euros, au dernier taux connu à la date. */
+  versEuros(actif: Actif, montant: number, date: DateISO): number {
+    if ((actif.devise ?? 'EUR') === 'EUR') return montant;
+    const t = this.tauxA(date);
+    return t ? montant / t.usdParEur : 0;
   }
 
   ops(actifId: string): Operation[] {
@@ -85,7 +111,7 @@ export class Index {
 
   /**
    * Valeur d'un actif à une date (en fin de journée).
-   * - Mode « cours » : quantité × dernier cours connu.
+   * - Mode « cours » : quantité × dernier cours connu (converti en euros pour un actif en dollars).
    * - Mode « valeur » : dernière valeur relevée + mouvements postérieurs au relevé.
    */
   valeur(actifId: string, date: DateISO, ligne?: Ligne): Centimes {
@@ -95,7 +121,7 @@ export class Index {
       const q = this.quantite(actifId, date, ligne);
       if (q === 0) return 0;
       const c = this.dernierCours(actifId, date);
-      return c ? Math.round(q * c.cours * 100) : 0;
+      return c ? Math.round(this.versEuros(actif, q * c.cours, date) * 100) : 0;
     }
     if (ligne && ligne !== actif.ligne) return 0;
     let base = 0;

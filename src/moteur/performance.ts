@@ -50,6 +50,8 @@ export interface StatsActif {
   /** Gain total = plus-value latente + réalisée + dividendes − frais payés à part. */
   gainTotal: Centimes;
   triDepuisAchat: number | null;
+  /** Actif en dollars : PRU, valeur et plus-value latente dans la devise (hors effet de change). */
+  devise?: { pru: number | null; valeur: Centimes; pvLatente: Centimes; pvLatentePct: number | null };
 }
 
 /** PRU au prix moyen pondéré (méthode fiscale française), plus-values latente et réalisée. */
@@ -62,6 +64,8 @@ export function statsActif(idx: Index, actif: Actif, date: DateISO): StatsActif 
   let interets = 0;
   let frais = 0;
   let fraisAPart = 0;
+  const enDollars = (actif.devise ?? 'EUR') !== 'EUR';
+  let coutDevise = 0; // cents de dollar, hors frais (comme l'affiche le courtier)
 
   for (const op of ops) {
     frais += op.frais;
@@ -69,9 +73,11 @@ export function statsActif(idx: Index, actif: Actif, date: DateISO): StatsActif 
       if (op.type === 'achat') {
         q += op.quantite ?? 0;
         cout += op.montant + op.frais;
+        coutDevise += op.montantDevise ?? Math.round((op.quantite ?? 0) * (op.prix ?? 0) * 100);
       } else if (op.type === 'vente') {
         const qv = op.quantite ?? 0;
         const coutSortie = q > 0 ? Math.round((cout * qv) / q) : 0;
+        coutDevise -= q > 0 ? Math.round((coutDevise * qv) / q) : 0;
         pvRealisee += op.montant - op.frais - coutSortie;
         cout -= coutSortie;
         q -= qv;
@@ -109,8 +115,16 @@ export function statsActif(idx: Index, actif: Actif, date: DateISO): StatsActif 
     interets,
     frais,
     gainTotal: pvLatente + pvRealisee + dividendes - fraisAPart,
-    triDepuisAchat
+    triDepuisAchat,
+    devise: enDollars && actif.mode === 'cours' ? statsDevise(idx, actif, date, q, coutDevise) : undefined
   };
+}
+
+function statsDevise(idx: Index, actif: Actif, date: DateISO, q: number, coutDevise: Centimes) {
+  const c = idx.dernierCours(actif.id, date);
+  const valeur = c ? Math.round(q * c.cours * 100) : 0;
+  const pvLatente = valeur - coutDevise;
+  return { pru: q > 0 ? coutDevise / 100 / q : null, valeur, pvLatente, pvLatentePct: coutDevise > 0 ? pvLatente / coutDevise : null };
 }
 
 /** Valeur d'un groupe à une date (fin de journée). */
