@@ -84,7 +84,22 @@ export function Performances() {
         </p>
       </Carte>
 
-      {detenus.length > 0 && <EvolutionSousPoches periode={periode} />}
+      {detenus.length > 0 && (
+        <EvolutionGroupes
+          titre="Évolution par poche"
+          periode={periode}
+          groupes={(['A', 'BO', 'BP', 'C'] as Poche[]).map((k) => ({ libelle: LIBELLES_POCHES[k], sel: ((a: Actif, l) => (sousPocheDe(l) ? 'C' : a.poche) === k) as Selection }))}
+          note="Chaque courbe démarre au premier versement de la poche dans la période ; une poche vide n'est pas tracée."
+        />
+      )}
+      {detenus.length > 0 && (
+        <EvolutionGroupes
+          titre="Évolution des sous-poches de C"
+          periode={periode}
+          groupes={SOUS_POCHES_C.map((k) => ({ libelle: LIBELLES_SOUS_POCHES[k], sel: ((_a: Actif, l) => sousPocheDe(l) === k) as Selection }))}
+          note="Chaque courbe démarre au premier achat de la sous-poche dans la période. Entre deux relevés, la valeur reste celle du dernier cours connu."
+        />
+      )}
 
       <Carte titre="Par actif">
         {detenus.length === 0 ? (
@@ -145,17 +160,18 @@ export function Performances() {
   );
 }
 
-/** Graphique d'évolution des cinq sous-poches de C sur la période : valeur en euros ou performance (TWR). */
-function EvolutionSousPoches({ periode }: { periode: Periode }) {
+/** Graphique d'évolution de plusieurs groupes (poches ou sous-poches) sur la période : valeur en euros ou performance (TWR). */
+function EvolutionGroupes({ titre, periode, groupes, note }: { titre: string; periode: Periode; groupes: { libelle: string; sel: Selection }[]; note: string }) {
   const { calc } = useApp();
   const [mode, setMode] = useState<'valeur' | 'perf'>('valeur');
-  const series = SOUS_POCHES_C.map((k) => {
-    const sel: Selection = (_a, l) => sousPocheDe(l) === k;
-    const debut = debutPeriode(calc.idx, sel, periode, calc.date);
-    return { k, s: sansDebutVide(serieGroupe(calc.idx, sel, debut, calc.date)) };
-  }).filter(({ s }) => s.some((p) => p.valeur !== 0));
+  const series = groupes
+    .map(({ libelle, sel }) => {
+      const debut = debutPeriode(calc.idx, sel, periode, calc.date);
+      return { libelle, s: sansDebutVide(serieGroupe(calc.idx, sel, debut, calc.date)) };
+    })
+    .filter(({ s }) => s.some((p) => p.valeur !== 0));
   return (
-    <Carte titre="Évolution des sous-poches de C">
+    <Carte titre={titre}>
       <div class="segments petits">
         <button class={mode === 'valeur' ? 'actif' : ''} onClick={() => setMode('valeur')}>Valeur (€)</button>
         <button class={mode === 'perf' ? 'actif' : ''} onClick={() => setMode('perf')}>Performance (%)</button>
@@ -167,8 +183,8 @@ function EvolutionSousPoches({ periode }: { periode: Periode }) {
           return {
             type: 'line',
             data: {
-              datasets: series.map(({ k, s }, i) => ({
-                label: LIBELLES_SOUS_POCHES[k],
+              datasets: series.map(({ libelle, s }, i) => ({
+                label: libelle,
                 data: s.map((p) => ({ x: Date.parse(p.date), y: mode === 'valeur' ? p.valeur / 100 : Math.round((p.indice - 100) * 100) / 100 })),
                 borderColor: c.serie[i % c.serie.length],
                 backgroundColor: c.serie[i % c.serie.length],
@@ -197,7 +213,7 @@ function EvolutionSousPoches({ periode }: { periode: Periode }) {
           };
         }}
       />
-      <p class="doux">Chaque courbe démarre au premier achat de la sous-poche dans la période. Entre deux relevés, la valeur reste celle du dernier cours connu.</p>
+      <p class="doux">{note}</p>
     </Carte>
   );
 }
