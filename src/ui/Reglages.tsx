@@ -3,7 +3,7 @@ import { useRef, useState } from 'preact/hooks';
 import { useApp } from './store';
 import { Carte, ChampChoix, ChampDate, ChampMontant, ChampNombre, ChampTexte, Eur, Vide, dateFr } from './commun';
 import { exporterFichier, lireFichier, demanderPersistance, NOM_FICHIER } from '../donnees/stockage';
-import { ErreurImport, etatVide, nouvelId } from '../donnees/etat';
+import { BUDGET_DEFAUT, ErreurImport, etatVide, nouvelId, type Budget } from '../donnees/etat';
 import { aujourdhui } from '../donnees/calculs';
 import { montantBP } from '../moteur/cibles';
 import { lireParametres, type ParametresBruts } from '../moteur/parametres';
@@ -14,6 +14,7 @@ export function Reglages() {
     <>
       <Synchronisation />
       <Profil />
+      <BudgetIndicatif />
       <Projets />
       <Parametres />
       <Installation />
@@ -247,6 +248,32 @@ function Installation() {
           Effacer les données de cet appareil
         </button>
       </details>
+    </Carte>
+  );
+}
+
+function BudgetIndicatif() {
+  const { etat, maj } = useApp();
+  const b = etat.preferences?.budget ?? BUDGET_DEFAUT;
+  const somme = b.essentiels + b.epargne + b.autres;
+  const changer = (k: keyof Budget, n: number | null) =>
+    maj((e) => {
+      const actuel = e.preferences?.budget ?? BUDGET_DEFAUT;
+      e.preferences = { ...e.preferences, budget: { ...actuel, [k]: n === null ? 0 : n / 100 } };
+    });
+  const pc = (x: number) => Math.round(x * 1000) / 10;
+  return (
+    <Carte titre="Budget (répartition indicative du revenu)">
+      <div class="formulaire">
+        <ChampNombre libelle="Dépenses essentielles (% du revenu)" valeur={pc(b.essentiels)} onChange={(n) => changer('essentiels', n)} />
+        <ChampNombre libelle="Épargne (% du revenu)" valeur={pc(b.epargne)} onChange={(n) => changer('epargne', n)} />
+        <ChampNombre libelle="Autres dépenses, loisirs (% du revenu)" valeur={pc(b.autres)} onChange={(n) => changer('autres', n)} />
+      </div>
+      {Math.abs(somme - 1) > 0.001 && <p class="avertissement">Le total fait {pc(somme)} % au lieu de 100 %.</p>}
+      <p class="doux">Affiché dans « Ce mois-ci » dès que tu saisis ton revenu net. Information seulement : la règle des flux du guide n'en dépend pas.</p>
+      <div class="boutons">
+        <button onClick={() => maj((e) => { e.preferences = { ...e.preferences, budget: { ...BUDGET_DEFAUT } }; })}>Revenir à 60 / 20 / 20</button>
+      </div>
     </Carte>
   );
 }

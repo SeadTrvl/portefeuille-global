@@ -41,10 +41,52 @@ export function Performances() {
     ...SOUS_POCHES_C.map((k: SousPocheC) => ({ cle: k, libelle: '· ' + LIBELLES_SOUS_POCHES[k], sel: ((_a: Actif, l) => sousPocheDe(l) === k) as Selection }))
   ];
 
+  const tableauGroupes = (
+    <div class="defilement">
+      <table class="tableau perf">
+        <thead>
+          <tr>
+            <th />
+            <th>Valeur</th>
+            <th title="Performance pondérée par le temps sur la période">Perf.</th>
+            <th title="Taux de rendement interne : annualisé si la période dépasse un an">TRI</th>
+            <th title="Dividendes nets reçus sur la période">Div.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {groupes.map((g) => {
+            const debut = debutPeriode(calc.idx, g.sel, periode, calc.date);
+            const v = serieGroupe(calc.idx, g.sel, debut, calc.date);
+            const fin = v[v.length - 1];
+            if (fin.valeur === 0 && v.every((x) => x.valeur === 0)) return null;
+            return (
+              <tr>
+                <td><b>{g.libelle}</b></td>
+                <td><Eur c={fin.valeur} /></td>
+                <td><Pct x={fin.indice / 100 - 1} /></td>
+                <td><Pct x={triGroupe(calc.idx, g.sel, debut, calc.date)} /></td>
+                <td>{(() => { const d = dividendesGroupe(calc.idx, g.sel, debut, calc.date); return d ? <Eur c={d} /> : '—'; })()}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <>
-      <Carte titre="Performances" action={<button class="principal petit" onClick={() => aller('cours')}>Mettre à jour les cours</button>}>
+      <Carte titre="Par poche et sous-poche" action={<button class="principal petit" onClick={() => aller('cours')}>Mettre à jour les cours</button>}>
         <ChoixPeriode p={periode} set={setPeriode} />
+        {detenus.length === 0 ? <Vide>Aucun actif avec des opérations.</Vide> : tableauGroupes}
+        <p class="doux">
+          <b>Perf.</b> : performance pondérée par le temps (indépendante de tes dates de versement, pour comparer). <b>TRI</b> : rendement de ton argent compte tenu de tes versements, annualisé au-delà d’un an (sur une période plus courte, rendement de la période). <b>Div.</b> : dividendes nets reçus sur la période.
+        </p>
+      </Carte>
+
+      {detenus.length > 0 && <EvolutionSousPoches periode={periode} />}
+
+      <Carte titre="Par actif">
         {detenus.length === 0 ? (
           <Vide>Aucun actif avec des opérations.</Vide>
         ) : (
@@ -99,43 +141,64 @@ export function Performances() {
       </Carte>
 
       {comparer.length > 0 && <Comparaison ids={comparer} periode={periode} />}
-
-      <Carte titre="Par poche et sous-poche">
-        <div class="defilement">
-          <table class="tableau perf">
-            <thead>
-              <tr>
-                <th />
-                <th>Valeur</th>
-                <th>Perf.</th>
-                <th>TRI</th>
-                <th title="Dividendes nets reçus sur la période">Div.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groupes.map((g) => {
-                const debut = debutPeriode(calc.idx, g.sel, periode, calc.date);
-                const v = serieGroupe(calc.idx, g.sel, debut, calc.date);
-                const fin = v[v.length - 1];
-                if (fin.valeur === 0 && v.every((x) => x.valeur === 0)) return null;
-                return (
-                  <tr>
-                    <td><b>{g.libelle}</b></td>
-                    <td><Eur c={fin.valeur} /></td>
-                    <td><Pct x={fin.indice / 100 - 1} /></td>
-                    <td><Pct x={triGroupe(calc.idx, g.sel, debut, calc.date)} /></td>
-                    <td>{(() => { const d = dividendesGroupe(calc.idx, g.sel, debut, calc.date); return d ? <Eur c={d} /> : '—'; })()}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <p class="doux">
-          <b>Perf.</b> : performance pondérée par le temps (indépendante de tes dates de versement, pour comparer des actifs). <b>TRI</b> : rendement de ton argent compte tenu de tes versements, annualisé au-delà d’un an (sur une période plus courte, rendement de la période). <b>Div.</b> : dividendes nets reçus sur la période (en euros).
-        </p>
-      </Carte>
     </>
+  );
+}
+
+/** Graphique d'évolution des cinq sous-poches de C sur la période : valeur en euros ou performance (TWR). */
+function EvolutionSousPoches({ periode }: { periode: Periode }) {
+  const { calc } = useApp();
+  const [mode, setMode] = useState<'valeur' | 'perf'>('valeur');
+  const series = SOUS_POCHES_C.map((k) => {
+    const sel: Selection = (_a, l) => sousPocheDe(l) === k;
+    const debut = debutPeriode(calc.idx, sel, periode, calc.date);
+    return { k, s: sansDebutVide(serieGroupe(calc.idx, sel, debut, calc.date)) };
+  }).filter(({ s }) => s.some((p) => p.valeur !== 0));
+  return (
+    <Carte titre="Évolution des sous-poches de C">
+      <div class="segments petits">
+        <button class={mode === 'valeur' ? 'actif' : ''} onClick={() => setMode('valeur')}>Valeur (€)</button>
+        <button class={mode === 'perf' ? 'actif' : ''} onClick={() => setMode('perf')}>Performance (%)</button>
+      </div>
+      <Graphique
+        hauteur={260}
+        config={() => {
+          const c = couleurs();
+          return {
+            type: 'line',
+            data: {
+              datasets: series.map(({ k, s }, i) => ({
+                label: LIBELLES_SOUS_POCHES[k],
+                data: s.map((p) => ({ x: Date.parse(p.date), y: mode === 'valeur' ? p.valeur / 100 : Math.round((p.indice - 100) * 100) / 100 })),
+                borderColor: c.serie[i % c.serie.length],
+                backgroundColor: c.serie[i % c.serie.length],
+                pointRadius: 0,
+                borderWidth: 2,
+                tension: 0.15
+              }))
+            },
+            options: {
+              ...optionsTemps(),
+              plugins: {
+                legend: { position: 'bottom' as const, labels: { boxWidth: 12 } },
+                tooltip: {
+                  callbacks: {
+                    title: (it: { parsed: { x: number } }[]) => dateFr(new Date(it[0].parsed.x).toISOString()),
+                    label: (ctx: { dataset: { label?: string }; parsed: { y: number } }) =>
+                      `${ctx.dataset.label} : ${mode === 'valeur' ? formatEuros(Math.round(ctx.parsed.y * 100)) : ctx.parsed.y.toLocaleString('fr-FR') + ' %'}`
+                  }
+                }
+              },
+              scales: {
+                ...optionsTemps().scales,
+                y: { ticks: { callback: (v: string | number) => (mode === 'valeur' ? Number(v).toLocaleString('fr-FR') + ' €' : v + ' %') } }
+              }
+            }
+          };
+        }}
+      />
+      <p class="doux">Chaque courbe démarre au premier achat de la sous-poche dans la période. Entre deux relevés, la valeur reste celle du dernier cours connu.</p>
+    </Carte>
   );
 }
 

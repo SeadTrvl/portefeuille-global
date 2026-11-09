@@ -19,6 +19,14 @@ import type { Credit } from '../moteur/credits';
 
 export const VERSION_SCHEMA = 1;
 
+/** Répartition indicative du revenu (hors guide) : parts en décimal. */
+export interface Budget {
+  essentiels: number;
+  epargne: number;
+  autres: number;
+}
+export const BUDGET_DEFAUT: Budget = { essentiels: 0.6, epargne: 0.2, autres: 0.2 };
+
 /** Copie profonde compatible avec les anciens Safari (structuredClone n'existe qu'à partir d'iOS 15.4). */
 export function copie<T>(x: T): T {
   return typeof structuredClone === 'function' ? structuredClone(x) : (JSON.parse(JSON.stringify(x)) as T);
@@ -52,7 +60,7 @@ export interface Etat {
   revues: Record<string, boolean>;
   /** Crédits en cours (hors guide : seulement pour le patrimoine net). */
   credits: Credit[];
-  preferences: { inclureCredits: boolean };
+  preferences: { inclureCredits: boolean; budget?: Budget };
 }
 
 export function etatVide(): Etat {

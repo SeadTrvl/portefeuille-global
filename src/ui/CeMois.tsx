@@ -1,8 +1,9 @@
 // « Ce mois-ci » : répartition de l'épargne du mois (§ 4), présentée comme une liste d'ordres à passer.
 import { useState } from 'preact/hooks';
 import { useApp } from './store';
-import { Carte, ChampMontant, Eur, Pct, Vide, LIBELLES_LIGNES } from './commun';
-import { formatDollars, type Centimes } from '../moteur/montants';
+import { BUDGET_DEFAUT } from '../donnees/etat';
+import { Carte, ChampMontant, Eur, Pct, Vide, LIBELLES_LIGNES, dateFr } from './commun';
+import { formatDollars, formatEuros, formatPct, type Centimes } from '../moteur/montants';
 import type { Actif, Ligne, Operation, Poche } from '../moteur/types';
 import { LIBELLES_SOUS_POCHES } from '../moteur/alertes';
 
@@ -112,6 +113,18 @@ export function CeMois() {
         {calc.krach.actif && <p class="avertissement">Épisode de krach en cours : la reconstitution de B-Opportunité (étape 3) est suspendue.</p>}
       </Carte>
 
+      {revenu ? <RepartitionBudget revenu={revenu} depenses={depenses} epargne={epargne} /> : null}
+
+      {calc.projet && (
+        <Carte titre={`B-Projet — ${calc.projet.projet.nom}`}>
+          <p>
+            effort_BP = max(0 ; montant_BP − BP) / mois restants = max(0 ; <Eur c={calc.projet.montant} /> − <Eur c={calc.projet.BP} />) / {calc.projet.mois} ={' '}
+            <b><Eur c={calc.projet.effort} /></b> par mois
+          </p>
+          <p class="doux">Prélevé sur l'épargne après A et avant B-Opportunité (§ 4, étape 2). Usage prévu le {dateFr(calc.projet.projet.dateUsage)}.</p>
+        </Carte>
+      )}
+
       <Carte titre="Ordres à passer">
         {E === 0 ? (
           <Vide>Indique ton épargne du mois pour obtenir la liste.</Vide>
@@ -143,7 +156,7 @@ export function CeMois() {
               <table class="tableau">
                 <tbody>
                   <tr><td>1. Vers A</td><td><Eur c={r.versA} /></td></tr>
-                  <tr><td>2. Vers B-Projet {calc.projet ? '' : '(aucun projet actif)'}</td><td><Eur c={r.versBP} /></td></tr>
+                  <tr><td>2. Vers B-Projet {calc.projet ? `(effort_BP ${formatEuros(calc.projet.effort)})` : '(aucun projet actif)'}</td><td><Eur c={r.versBP} /></td></tr>
                   <tr><td>3. Vers B-Opportunité {calc.krach.actif ? '(suspendu)' : ''}</td><td><Eur c={r.versBO} /></td></tr>
                   <tr><td>4. Reste vers C</td><td><Eur c={r.resteC} /></td></tr>
                   {Object.entries(r.manquesC).map(([k, m]) => (
@@ -163,5 +176,42 @@ export function CeMois() {
         )}
       </Carte>
     </>
+  );
+}
+
+/**
+ * Répartition indicative du revenu (information seulement, hors guide) :
+ * dépenses essentielles, épargne, autres dépenses — 60 / 20 / 20 par défaut, réglable dans les Réglages.
+ */
+function RepartitionBudget({ revenu, depenses, epargne }: { revenu: Centimes; depenses: Centimes | null; epargne: Centimes | null }) {
+  const { etat } = useApp();
+  const b = etat.preferences?.budget ?? BUDGET_DEFAUT;
+  const lignes: { libelle: string; part: number; reel: Centimes | null; ok: (reel: Centimes, cible: Centimes) => boolean; sens: string }[] = [
+    { libelle: 'Dépenses essentielles', part: b.essentiels, reel: depenses, ok: (x, c) => x <= c, sens: 'au plus' },
+    { libelle: 'Épargne', part: b.epargne, reel: epargne, ok: (x, c) => x >= c, sens: 'au moins' },
+    { libelle: 'Autres dépenses, loisirs', part: b.autres, reel: depenses !== null && epargne !== null ? Math.max(0, revenu - depenses - epargne) : null, ok: (x, c) => x <= c, sens: 'au plus' }
+  ];
+  return (
+    <Carte titre="Répartition indicative du revenu">
+      <ul class="liste budget">
+        {lignes.map((l) => {
+          const cible = Math.round(revenu * l.part);
+          const ok = l.reel === null ? null : l.ok(l.reel, cible);
+          return (
+            <li>
+              <div class="ligne-liste">
+                <b>{l.libelle}</b>
+                <span>{l.reel !== null ? <b class={ok ? 'positif' : 'negatif'}>{formatEuros(l.reel)}</b> : '—'}</span>
+              </div>
+              <small class={ok === null ? '' : ok ? 'positif' : 'negatif'}>
+                {formatPct(l.part, 0)} du revenu = {formatEuros(cible)} ({l.sens})
+                {l.reel !== null && revenu > 0 ? ` · réel ${formatPct(l.reel / revenu, 0)}` : ''}
+              </small>
+            </li>
+          );
+        })}
+      </ul>
+      <p class="doux">Information seulement : cette répartition ne change pas la règle des flux du guide. Proportions réglables dans Réglages → Budget.</p>
+    </Carte>
   );
 }
